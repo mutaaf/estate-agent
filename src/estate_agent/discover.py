@@ -26,6 +26,11 @@ from .stacks import IGNORED_DIRS, Stack
 MAX_FILE_BYTES = 512 * 1024
 MAX_FILES_PER_REPO = 4000
 MAX_MATCHES_PER_PATTERN = 200
+# Endpoints get a much higher ceiling than call sites. A large app-router
+# project really does declare hundreds of routes, and a truncated endpoint list
+# is worse than a slow scan: the repo stops recognising calls to its own
+# endpoints, so they resolve to whichever other repo shares a route name.
+MAX_ENDPOINTS_PER_REPO = 3000
 
 TEXT_SUFFIXES = {
     ".java", ".kt", ".kts", ".swift", ".rs", ".cs", ".ts", ".tsx", ".js",
@@ -40,13 +45,16 @@ TEXT_NAMES = {
     ".env.example", ".env.sample", "package.json", "pom.xml", "Cargo.toml",
 }
 
-CONTRACT_GLOBS = [
-    "openapi.yaml", "openapi.yml", "openapi.json", "swagger.yaml",
-    "swagger.json", "api.yaml", "api.yml",
-    "**/openapi.yaml", "**/openapi.yml", "**/openapi.json",
-    "**/swagger.json", "**/*.proto", "**/*.graphql", "**/schema.graphql",
-    "**/asyncapi.yaml", "**/asyncapi.yml",
-]
+# Contract files, matched by suffix or by exact name. Kept as sets rather than
+# glob patterns so they can be tested against a single bounded walk.
+CONTRACT_SUFFIXES = {".proto", ".graphql", ".graphqls", ".gql"}
+CONTRACT_NAMES = {
+    "openapi.yaml", "openapi.yml", "openapi.json",
+    "swagger.yaml", "swagger.yml", "swagger.json",
+    "api.yaml", "api.yml", "api.json",
+    "asyncapi.yaml", "asyncapi.yml",
+    "schema.graphql", "schema.graphqls",
+}
 
 
 @dataclass
@@ -96,6 +104,10 @@ class RepoRecord:
     has_deed: bool = False
     notes: list[str] = field(default_factory=list)
     infra: list[InfraRef] = field(default_factory=list)
+    # How many call sites were found. The signals themselves are not written
+    # to graph.json - they are numerous and full of paths - but the count is
+    # the main coverage signal a field report needs, so it is kept.
+    call_sites: int = 0
 
     @property
     def is_client(self) -> bool:
@@ -116,6 +128,7 @@ class RepoRecord:
             ],
             "hosts": self.hosts,
             "notes": self.notes,
+            "call_sites": self.call_sites or len(self.signals),
             "infra": [i.as_dict() for i in self.infra],
         }
 
@@ -233,8 +246,16 @@ def iter_source_files(root: Path) -> Iterator[Path]:
             if entry.is_symlink():
                 continue
             if entry.is_dir():
-                if entry.name not in IGNORED_DIRS and entry.name != ".git":
-                    stack.append(entry)
+                if entry.name in IGNORED_DIRS or entry.name == ".git":
+                    continue
+                # A nested checkout belongs to *that* repo, not this one.
+                # Vendored copies, monorepo workspaces and agent working
+                # directories all produce this, and attributing their files
+                # here makes two repos appear to call each other when they are
+                # simply the same code counted twice.
+                if (entry / ".git").exists():
+                    continue
+                stack.append(entry)
                 continue
             if not _is_text(entry):
                 continue
@@ -307,16 +328,24 @@ def _classify_value(raw: str) -> tuple[str, str] | None:
     return None
 
 
-def extract_endpoints(root: Path, stack: Stack, files: list[tuple[Path, str]]) -> list[Endpoint]:
+def extract_endpoints(
+    root: Path, stack: Stack, files: list[tuple[Path, str]]
+) -> tuple[list[Endpoint], bool]:
+    """Returns (endpoints, truncated). `truncated` is reported, never hidden."""
     endpoints: list[Endpoint] = []
     seen: set[str] = set()
+    truncated = False
     for pattern in stack.routes:
         if pattern.regex is None:
             continue
         hits = 0
         for path, text in files:
+            if len(endpoints) >= MAX_ENDPOINTS_PER_REPO:
+                truncated = True
+                break
             for match in pattern.regex.finditer(text):
-                if hits >= MAX_MATCHES_PER_PATTERN:
+                if len(endpoints) >= MAX_ENDPOINTS_PER_REPO:
+                    truncated = True
                     break
                 route = pattern.group("path", match) or ""
                 method = (pattern.group("method", match) or "").upper()
@@ -337,7 +366,7 @@ def extract_endpoints(root: Path, stack: Stack, files: list[tuple[Path, str]]) -
                 seen.add(endpoint.key())
                 endpoints.append(endpoint)
                 hits += 1
-    return endpoints
+    return endpoints, truncated
 
 
 def _route_from_filename(root: Path, path: Path) -> str:
@@ -346,12 +375,20 @@ def _route_from_filename(root: Path, path: Path) -> str:
         parts = list(path.relative_to(root).parts)
     except ValueError:
         return ""
-    for anchor in ("app", "pages", "api"):
+    # `app/` and `pages/` are routing roots and do not appear in the URL.
+    # `api/` does: Next.js `pages/api/scrape.ts` and Vercel `api/scrape.ts`
+    # both serve `/api/scrape`. Stripping it produced `/scrape`, which then
+    # failed to match the repo's own calls to `/api/scrape` - so a self-call
+    # looked like a call to a different service that happened to declare the
+    # same path. Found by running this against real repos.
+    for anchor in ("app", "pages"):
         if anchor in parts:
             parts = parts[parts.index(anchor) + 1:]
             break
     else:
-        return ""
+        if "api" not in parts:
+            return ""
+        parts = parts[parts.index("api"):]
     if parts and parts[-1].split(".")[0] in ("route", "index", "handler"):
         parts = parts[:-1]
     else:
@@ -515,19 +552,31 @@ def _extract_config_urls(root: Path, stack: Stack) -> list[Signal]:
 
 
 def find_contracts(root: Path) -> list[str]:
+    """API specs, from a single bounded walk.
+
+    This used to use `Path.glob("**/*.proto")` and friends. Recursive globs do
+    not know about the ignore list, so every call descended into node_modules,
+    .venv and vendored trees - 83% of total scan time on a real machine, and
+    the reason a 25-repo estate took over a minute. Reuse the walk that already
+    respects IGNORED_DIRS instead.
+    """
     found: list[str] = []
-    for pattern in CONTRACT_GLOBS:
-        for path in list(root.glob(pattern))[:20]:
-            if not path.is_file():
+    for path in iter_source_files(root):
+        if path.suffix.lower() not in CONTRACT_SUFFIXES:
+            if path.name.lower() not in CONTRACT_NAMES:
                 continue
-            if any(part in IGNORED_DIRS for part in path.parts):
-                continue
+        name = path.name.lower()
+        if path.suffix.lower() in (".yaml", ".yml", ".json") and name not in CONTRACT_NAMES:
+            continue
+        try:
             relative = str(path.relative_to(root))
-            if relative not in found:
-                found.append(relative)
+        except ValueError:
+            continue
+        if relative not in found:
+            found.append(relative)
         if len(found) >= 40:
             break
-    return found
+    return sorted(found)
 
 
 def find_hosts(root: Path, files: list[tuple[Path, str]]) -> list[str]:
@@ -599,7 +648,13 @@ def survey(root: Path, workspace: Path) -> RepoRecord:
             files.append((path, text))
 
     for profile in profiles:
-        record.endpoints.extend(extract_endpoints(root, profile, files))
+        found, truncated = extract_endpoints(root, profile, files)
+        record.endpoints.extend(found)
+        if truncated:
+            record.notes.append(
+                f"endpoint list truncated at {MAX_ENDPOINTS_PER_REPO}; some "
+                f"routes are missing from the map"
+            )
         record.signals.extend(extract_signals(root, profile, files))
 
     record.hosts = find_hosts(root, files)

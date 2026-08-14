@@ -50,6 +50,7 @@ def load_map(graph_file: Path) -> EstateMap:
             has_deed=bool(raw.get("has_deed")),
             hosts=raw.get("hosts", []),
             notes=raw.get("notes", []),
+            call_sites=int(raw.get("call_sites") or 0),
         )
         record.endpoints = [
             Endpoint(e.get("method", ""), e.get("path", ""), e.get("evidence", ""))

@@ -183,11 +183,26 @@ says where it is less confident rather than letting you assume even coverage.
 | new to AI coding agents | [docs/plain-english.md](docs/plain-english.md) |
 | wondering what a word means | [docs/glossary.md](docs/glossary.md) |
 | already running a docs initiative | [docs/interop.md](docs/interop.md) |
+| trying it on real repos and hitting bugs | [docs/field-testing.md](docs/field-testing.md) |
 
 Also: [the five levels](docs/levels.md) · [tiers](docs/tiers.md) · [the map](docs/estate.md) ·
 [self-healing](docs/self-healing.md) ·
 [a worked example](docs/workflows/cross-repo-change.md) ·
-[adding a language](docs/adding-a-stack.md)
+[adding a language](docs/adding-a-stack.md) ·
+[field-testing](docs/field-testing.md)
+
+---
+
+## Found a problem?
+
+```bash
+estate report ~/work --out report.md
+```
+
+Redacted by default — repo names, hosts and paths are pseudonymised, so it is
+safe to attach to a public issue. `--include-names` opts out and stamps the
+report **UNREDACTED** so nobody forwards it by accident. See
+[field-testing](docs/field-testing.md).
 
 ---
 

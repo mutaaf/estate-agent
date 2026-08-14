@@ -338,48 +338,45 @@ def _resolve_path(source: str, path: str, index: _Index):
         # a service. Matching on it produces confident nonsense.
         return (None, "path is too generic to identify a service", [])
 
-    all_owners = index.by_path.get(normalised, [])
-    if all_owners and set(all_owners) == {source}:
-        # A repo calling its own route. Extremely common in Next.js and any
-        # app with a backend-for-frontend, and not a connection at all.
+    def owners_of(candidate: str) -> set[str]:
+        """Every repo declaring this path, exactly or by prefix either way."""
+        found = set(index.by_path.get(candidate, []))
+        for known, names in index.by_path.items():
+            if known == candidate:
+                continue
+            if len(literal_segments(known)) < 2:
+                continue
+            # `/v2/refund` and a provider's `/v2/refund/{id}` are the same
+            # endpoint, so a prefix relationship counts in either direction.
+            if known.startswith(candidate + "/") or candidate.startswith(known + "/"):
+                found.update(names)
+        return found
+
+    all_owners = owners_of(normalised)
+
+    # If the calling repo declares this path itself - exactly or as a prefix -
+    # it is calling itself, whatever else happens to share the name.
+    #
+    # This check used to fire only when the source was the *sole* owner, which
+    # was wrong in the common case: a Next.js app calling its own
+    # `/api/scrape` while an unrelated app also declares `/api/scrape` resolved
+    # to the unrelated app. Route names like `/api/share`, `/api/og` and
+    # `/api/scrape` recur across independent codebases, so this produced a
+    # confident edge between two projects that had never heard of each other.
+    # Found by scanning a real machine, not by reasoning.
+    if source in all_owners:
         return (None, SELF_CALL, [])
 
-    owners = [o for o in all_owners if o != source]
+    owners = sorted(all_owners)
 
     if not owners:
-        # A caller's `/v2/refund` and a provider's `/v2/refund/{id}` are the
-        # same endpoint. Accept a prefix relationship, but only when it points
-        # at exactly one service - the moment it is ambiguous it becomes a
-        # question instead of a guess.
-        prefixed = {
-            owner
-            for known, names in index.by_path.items()
-            if known != normalised
-            and (known.startswith(normalised + "/")
-                 or normalised.startswith(known + "/"))
-            # Both sides must share at least two named segments, so
-            # `/v2/refund` matches `/v2/refund/{id}` but `/api/x/y` does not
-            # match some unrelated repo's `/api`.
-            and len(literal_segments(known)) >= 2
-            for owner in names
-            if owner != source
-        }
-        if len(prefixed) == 1:
-            return (prefixed.pop(), "path", CONFIDENCE["path"] - 0.05)
-        if len(prefixed) > 1:
-            return (
-                None,
-                f"{len(prefixed)} services declare a matching path prefix - "
-                f"confirm which one is meant",
-                sorted(prefixed),
-            )
         return (None, "no service in this workspace declares this path", [])
-    if len(set(owners)) > 1:
+    if len(owners) > 1:
         return (
             None,
-            f"{len(set(owners))} services declare this path - confirm which "
+            f"{len(owners)} services declare this path - confirm which "
             f"one is meant",
-            sorted(set(owners)),
+            owners,
         )
     return (owners[0], "path", CONFIDENCE["path"])
 
@@ -492,10 +489,15 @@ def build(repos: list[RepoRecord], workspace: str = "") -> EstateMap:
 # --------------------------------------------------------------------------
 
 
-def write_json(estate: EstateMap, path: Path) -> None:
+def write_json(
+    estate: EstateMap, path: Path, seconds: float | None = None
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    data = estate.as_dict()
+    if seconds is not None:
+        data["scan_seconds"] = round(seconds, 2)
     path.write_text(
-        json.dumps(estate.as_dict(), indent=2, sort_keys=False) + "\n",
+        json.dumps(data, indent=2, sort_keys=False) + "\n",
         encoding="utf-8",
     )
 

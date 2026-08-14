@@ -36,6 +36,10 @@ USAGE = """estate - the standard for AI agents working across your repo estate
     estate vault [workspace]  write the estate as linked markdown notes
                               (Obsidian, GitHub, rg, or an AI agent)
 
+  Report a problem
+    estate report [workspace] a diagnostic with names and paths removed,
+                              safe to attach to a bug report
+
   Other
     estate version
     estate help [command]
@@ -234,6 +238,9 @@ def main(argv: list[str] | None = None) -> int:
     if name == "vault":
         from .vault import cmd_vault
         return cmd_vault(args)
+    if name == "report":
+        from .report import cmd_report
+        return cmd_report(args)
 
     handler = COMMANDS.get(name)
     if handler is None:

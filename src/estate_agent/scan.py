@@ -60,7 +60,7 @@ def cmd_scan(args: list[str]) -> int:
     estate = build(records, str(workspace))
 
     out_dir = workspace / ESTATE_DIR
-    write_json(estate, out_dir / "graph.json")
+    write_json(estate, out_dir / "graph.json", time.time() - started)
     (out_dir / "estate.yaml").write_text(
         yamlite.dump(_register_yaml(estate)), encoding="utf-8"
     )

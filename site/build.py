@@ -68,6 +68,9 @@ PAGES = [
      "The costs, the benefits, and what failure looks like."),
     ("adding-a-stack", "Adding a language",
      "Teaching Estate Agent a new stack. One YAML file, no code."),
+    ("field-testing", "Field-testing it",
+     "Running Estate Agent against real repositories, finding what it gets "
+     "wrong, and reporting that without leaking anything."),
     ("interop", "Inside an existing initiative",
      "What Estate Agent covers, what it deliberately leaves to humans, and "
      "how to use it as a component of a documentation or knowledge-graph "

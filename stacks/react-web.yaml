@@ -13,9 +13,21 @@ detect:
   extensions:
     - .tsx
     - .jsx
+    # Next.js route handlers are `route.ts`, not `.tsx`. Omitting these meant
+    # every API route in an app-router project went undetected, which in turn
+    # made the app's calls to its own endpoints look like calls to whichever
+    # unrelated project happened to share a route name.
+    - .ts
+    - .js
+  # A package.json plus .ts files is a Node service, not a React app. React
+  # is only React when react or next is actually a dependency, so the marker
+  # is mandatory rather than merely additive.
+  requires_marker: true
   content_markers:
     - '"react":'
     - '"next":'
+    - '"@remix-run/react":'
+    - '"solid-js":'
 
 commands:
   install: npm ci
