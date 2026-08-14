@@ -7,9 +7,12 @@ site/_build/
 .venv/
 
 # Scan output is generated; it embeds the absolute path of whoever ran it,
-# which must never reach a public commit. tests/test_publishable.py enforces this.
-estate/
-ESTATE.md
+# which must never reach a public commit. tests/test_publishable.py enforces
+# this. The leading slash matters: unanchored, `estate/` also matches
+# tests/fixtures/estate/ and quietly excludes the fixture that proves the
+# map's precision.
+/estate/
+/ESTATE.md
 
 # Generated site output
 _site/

@@ -206,5 +206,58 @@ class HistoryIsClean(unittest.TestCase):
         )
 
 
+class NothingImportantIsIgnored(unittest.TestCase):
+    """Files the test suite needs must actually be committed.
+
+    An over-broad .gitignore excluded `tests/fixtures/estate/` and
+    `docs/estate.md` from the first push: the pattern `estate/` matches any
+    directory of that name at any depth. Everything passed locally and the
+    published repo was broken. Anchoring the patterns fixed it; this test
+    stops it coming back.
+    """
+
+    REQUIRED = [
+        "tests/fixtures/estate/payments-api/pom.xml",
+        "tests/fixtures/estate/ios-app/Sources/Endpoints.swift",
+        "tests/fixtures/estate/roku-app/source/Api.brs",
+        "docs/estate.md",
+        "docs/data-flow.md",
+        "stacks/java.yaml",
+        "stacks/as400.yaml",
+        "hooks/secret_guard.py",
+        "templates/settings/permissions.json",
+        "bin/estate",
+    ]
+
+    def test_required_files_are_tracked(self) -> None:
+        if not (ROOT / ".git").exists():
+            self.skipTest("not a git repo")
+        try:
+            tracked = set(subprocess.run(
+                ["git", "ls-files"], cwd=ROOT, capture_output=True,
+                text=True, timeout=60,
+            ).stdout.split())
+        except (subprocess.SubprocessError, OSError):
+            self.skipTest("git unavailable")
+        missing = [p for p in self.REQUIRED if p not in tracked]
+        self.assertEqual(
+            [], missing,
+            "these exist on disk but are not committed - check .gitignore:\n  "
+            + "\n  ".join(missing),
+        )
+
+    def test_every_stack_profile_is_tracked(self) -> None:
+        if not (ROOT / ".git").exists():
+            self.skipTest("not a git repo")
+        tracked = set(subprocess.run(
+            ["git", "ls-files", "stacks"], cwd=ROOT, capture_output=True,
+            text=True,
+        ).stdout.split())
+        on_disk = {
+            str(p.relative_to(ROOT)) for p in (ROOT / "stacks").glob("*.yaml")
+        }
+        self.assertEqual(on_disk, tracked, "a stack profile is not committed")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -1,0 +1,3 @@
+<project><artifactId>payments-api</artifactId>
+  <dependencies><dependency><artifactId>ledger-client</artifactId></dependency></dependencies>
+</project>
