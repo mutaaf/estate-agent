@@ -34,5 +34,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The publish-safety check scans git history, not just the working
+          # tree. A shallow clone would make it pass without looking.
+          fetch-depth: 0
       - name: Estate Agent must pass its own linter
         run: python3 tests/test_publishable.py

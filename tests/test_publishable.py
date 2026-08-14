@@ -192,8 +192,15 @@ class HistoryIsClean(unittest.TestCase):
         for path, section in _diff_sections(diff):
             if path in EXEMPT:
                 continue  # The adversarial battery contains fakes by design.
+            # Only added content counts. Scanning the whole section would also
+            # sweep in the next commit's Author line, which trails the last
+            # diff of the previous one and is not part of any file.
+            added = "\n".join(
+                line for line in section.splitlines()
+                if line.startswith("+") and not line.startswith("+++")
+            )
             for pattern, description in IDENTIFYING:
-                for item in set(re.findall(pattern, section)):
+                for item in set(re.findall(pattern, added)):
                     text = item if isinstance(item, str) else str(item)
                     if _is_allowed_in_history(text):
                         continue
