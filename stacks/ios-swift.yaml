@@ -1,0 +1,94 @@
+# Estate Agent stack profile: iOS (Swift)
+#
+# Client platforms are leaves in the estate: they consume services and expose
+# nothing. That makes them the most dangerous consumers to forget about,
+# because they ship on app-store timelines and cannot be fixed forward.
+
+stack: ios-swift
+display: iOS (Swift)
+kind: client
+
+detect:
+  files:
+    - Package.swift
+    - '*.xcodeproj'
+    - '*.xcworkspace'
+    - Podfile
+  extensions:
+    - .swift
+  not_dirs:
+    - tvOS
+
+commands:
+  build: xcodebuild -scheme App -destination 'generic/platform=iOS' build
+  test: xcodebuild test -scheme App -destination 'platform=iOS Simulator,name=iPhone 15'
+  lint: swiftlint
+  alternatives:
+    - when: Package.swift
+      build: swift build
+      test: swift test
+
+conventions:
+  - Networking goes through the shared API client, not URLSession directly
+  - Codable models mirror the server contract; do not hand-roll JSON parsing
+  - Keep view models free of UIKit/SwiftUI imports
+
+tier_default: 2
+
+provides: {}
+
+consumes:
+  patterns:
+    - name: url-literal
+      regex: '\bURL\s*\(\s*string\s*:\s*([^)]+)\)'
+      url_group: 1
+      via: rest
+    - name: endpoint-enum-case
+      regex: '\bcase\s+\w+\s*=\s*["''](/[^"'']+)["'']'
+      path_group: 1
+      via: rest
+    - name: path-property
+      regex: '\b(?:path|endpoint|route)\s*:\s*String\s*\{\s*(?:return\s*)?["'']([^"'']+)["'']'
+      path_group: 1
+      via: rest
+    - name: alamofire-request
+      regex: '\bAF\.request\s*\(\s*([^,)]+)'
+      url_group: 1
+      via: rest
+    - name: urlsession-datatask
+      regex: '\bURLSession\.\w+\.dataTask\s*\(\s*with\s*:\s*([^,)]+)'
+      url_group: 1
+      via: rest
+    - name: baseurl-constant
+      regex: '\b(?:baseURL|baseUrl|apiBase|host)\s*(?::\s*\w+)?\s*=\s*([^\n]+)'
+      url_group: 1
+      via: rest
+    - name: appended-path
+      regex: '\.appendingPathComponent\s*\(\s*["'']([^"'']+)["'']'
+      path_group: 1
+      via: rest
+
+  client_dependencies:
+    - file: Package.swift
+      regex: '\.package\([^)]*url:\s*["''][^"'']*/([\w.\-]*(?:client|sdk|api))["'']'
+      name_group: 1
+    - file: Podfile
+      regex: "pod\\s+['\"]([\\w.\\-]*(?:Client|SDK|API))['\"]"
+      name_group: 1
+
+config:
+  base_urls:
+    - file: Configuration/Production.xcconfig
+      regex: '([A-Z0-9_]*(?:URL|HOST|ENDPOINT))\s*=\s*(.*)'
+    - file: Info.plist
+      regex: '<key>([\w]*(?:URL|Host|Endpoint))</key>\s*<string>([^<]+)</string>'
+
+notes: |
+  Endpoint enums are the common Swift idiom and give clean path fragments
+  without a host. Those paths are matched against provider endpoints across
+  the estate, which is usually enough to identify the service.
+
+  Remember what this platform costs: a breaking API change reaches iOS users
+  only after review and staged rollout, and old app versions keep calling the
+  old shape for months. Treat every iOS consumer as a hard constraint on the
+  server change, not a follow-up ticket.

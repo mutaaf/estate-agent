@@ -1,0 +1,126 @@
+# Estate Agent stack profile: Node / TypeScript backend
+
+stack: node
+display: Node / TypeScript
+kind: backend
+
+detect:
+  files:
+    - package.json
+  extensions:
+    - .ts
+    - .js
+    - .mjs
+  # A package.json with react in it is the react-web stack instead. Ordering
+  # in stacks.py handles that; this profile is the fallback for Node.
+  not_files:
+    - next.config.js
+    - next.config.mjs
+
+commands:
+  install: npm ci
+  build: npm run build
+  test: npm test
+  lint: npm run lint
+  alternatives:
+    - when: pnpm-lock.yaml
+      install: pnpm install --frozen-lockfile
+      build: pnpm build
+      test: pnpm test
+      lint: pnpm lint
+    - when: yarn.lock
+      install: yarn install --frozen-lockfile
+      build: yarn build
+      test: yarn test
+      lint: yarn lint
+
+conventions:
+  - Keep route handlers thin; put logic in services
+  - Use the existing error middleware rather than try/catch in every handler
+  - Async/await throughout, no mixed promise chains
+
+tier_default: 2
+
+provides:
+  contracts:
+    - openapi.yaml
+    - openapi.json
+    - swagger.json
+    - schema.graphql
+    - proto/*.proto
+  routes:
+    - name: express-router
+      regex: '\b(?:app|router|api)\.(get|post|put|delete|patch|all)\s*\(\s*[`"'']([^`"'']+)[`"'']'
+      method_group: 1
+      path_group: 2
+    - name: fastify-route
+      regex: '\bfastify\.(get|post|put|delete|patch)\s*\(\s*[`"'']([^`"'']+)[`"'']'
+      method_group: 1
+      path_group: 2
+    - name: nestjs-method
+      regex: '@(Get|Post|Put|Delete|Patch)\s*\(\s*[`"'']?([^`"'')]*)[`"'']?\s*\)'
+      method_group: 1
+      path_group: 2
+    - name: nestjs-controller
+      regex: '@Controller\s*\(\s*[`"'']([^`"'']+)[`"'']'
+      path_group: 1
+    - name: hono-koa
+      regex: '\b(?:hono|koaRouter)\.(get|post|put|delete|patch)\s*\(\s*[`"'']([^`"'']+)[`"'']'
+      method_group: 1
+      path_group: 2
+
+consumes:
+  patterns:
+    - name: axios-call
+      regex: '\baxios\.(get|post|put|delete|patch)\s*\(\s*([^,)]+)'
+      url_group: 2
+      via: rest
+    - name: axios-instance
+      regex: '\baxios\.create\s*\(\s*\{[^}]*baseURL\s*:\s*([^,}]+)'
+      url_group: 1
+      via: rest
+    - name: fetch-call
+      regex: '\bfetch\s*\(\s*([^,)]+)'
+      url_group: 1
+      via: rest
+    - name: got-ky-request
+      regex: '\b(?:got|ky|superagent)\s*(?:\.\w+)?\s*\(\s*([^,)]+)'
+      url_group: 1
+      via: rest
+    - name: grpc-client
+      regex: '\bnew\s+(\w+)Client\s*\(\s*[`"'']([^`"'']+)[`"'']'
+      service_group: 1
+      via: grpc
+    - name: graphql-request
+      regex: '\b(?:request|GraphQLClient)\s*\(\s*([^,)]+)'
+      url_group: 1
+      via: graphql
+    - name: kafka-topic
+      regex: '\b(?:subscribe|send)\s*\(\s*\{\s*topics?\s*:\s*\[?\s*[`"'']([^`"'']+)[`"'']'
+      topic_group: 1
+      via: queue
+    - name: sqs-queue
+      regex: 'QueueUrl\s*:\s*[`"'']([^`"'']+)[`"'']'
+      topic_group: 1
+      via: queue
+    - name: rabbit-queue
+      regex: '\b(?:assertQueue|sendToQueue|consume)\s*\(\s*[`"'']([^`"'']+)[`"'']'
+      topic_group: 1
+      via: queue
+
+  client_dependencies:
+    - file: package.json
+      regex: '"(@[\w.\-]+/[\w.\-]*(?:client|sdk|api)|[\w.\-]*-(?:client|sdk))"\s*:'
+      name_group: 1
+
+config:
+  base_urls:
+    - file: .env.example
+      regex: '([A-Z0-9_]*(?:URL|URI|ENDPOINT|HOST))\s*=\s*(.*)'
+    - file: src/config.ts
+      regex: '([A-Za-z0-9_]*(?:Url|URL|Endpoint|BaseUrl))\s*[:=]\s*([^,;\n]+)'
+
+notes: |
+  Template literals such as `${API_BASE}/v2/charge` are captured with the
+  variable intact rather than guessed at. The variable name is usually a
+  better clue to which service is meant than the path is.

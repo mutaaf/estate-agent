@@ -1,0 +1,7 @@
+{
+  "name": "estate-agent",
+  "description": "The standard for AI agents working across your repo estate: one context file per repo for every assistant, a cross-repo service map with evidence, and guardrails that block credential access.",
+  "version": "0.1.0",
+  "homepage": "https://mutaaf.github.io/estate-agent",
+  "license": "MIT"
+}

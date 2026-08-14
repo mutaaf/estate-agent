@@ -1,0 +1,98 @@
+# Estate Agent stack profile: .NET / C#
+
+stack: dotnet
+display: .NET / C#
+kind: backend
+
+detect:
+  files:
+    - '*.csproj'
+    - '*.sln'
+    - Directory.Build.props
+  extensions:
+    - .cs
+
+commands:
+  build: dotnet build --nologo
+  test: dotnet test --nologo
+  lint: dotnet format --verify-no-changes
+  install: dotnet restore
+
+conventions:
+  - Async all the way down; suffix async methods with Async
+  - Register services through dependency injection, not static access
+  - Use the existing Result/Problem types rather than throwing for flow control
+
+tier_default: 2
+
+provides:
+  contracts:
+    - openapi.yaml
+    - swagger.json
+    - wwwroot/swagger.json
+    - Protos/*.proto
+  routes:
+    - name: attribute-http-method
+      regex: '\[Http(Get|Post|Put|Delete|Patch)\s*(?:\(\s*["'']([^"'']*)["'']\s*\))?\]'
+      method_group: 1
+      path_group: 2
+    - name: attribute-route
+      regex: '\[Route\s*\(\s*["'']([^"'']+)["'']\s*\)\]'
+      path_group: 1
+    - name: minimal-api
+      regex: '\bapp\.Map(Get|Post|Put|Delete|Patch)\s*\(\s*["'']([^"'']+)["'']'
+      method_group: 1
+      path_group: 2
+
+consumes:
+  patterns:
+    - name: named-http-client
+      regex: '\bAddHttpClient\s*(?:<[^>]+>)?\s*\(\s*["'']([^"'']+)["'']'
+      service_group: 1
+      via: rest
+      confidence: declared
+    - name: http-client-call
+      regex: '\b_?[Hh]ttpClient\.(GetAsync|PostAsync|PutAsync|DeleteAsync|PatchAsync|GetFromJsonAsync|PostAsJsonAsync|SendAsync)\s*\(\s*([^,)]+)'
+      url_group: 2
+      via: rest
+    - name: base-address
+      regex: '\bBaseAddress\s*=\s*new\s+Uri\s*\(\s*([^)]+)\)'
+      url_group: 1
+      via: rest
+    - name: refit-interface
+      regex: '\[(?:Get|Post|Put|Delete|Patch)\s*\(\s*["'']([^"'']+)["'']\s*\)\]'
+      path_group: 1
+      via: rest
+    - name: grpc-client
+      regex: '\bnew\s+(\w+)\.(\w+)Client\s*\('
+      service_group: 1
+      via: grpc
+    - name: servicebus-queue
+      regex: '\bCreate(?:Sender|Processor)\s*\(\s*["'']([^"'']+)["'']'
+      topic_group: 1
+      via: queue
+    - name: masstransit-consumer
+      regex: '\bReceiveEndpoint\s*\(\s*["'']([^"'']+)["'']'
+      topic_group: 1
+      via: queue
+    - name: sql-connection
+      regex: '\bnew\s+SqlConnection\s*\(\s*([^)]+)\)'
+      url_group: 1
+      via: database
+
+  client_dependencies:
+    - file: '*.csproj'
+      regex: '<PackageReference\s+Include="([\w.\-]*(?:\.Client|\.Sdk|\.Api))"'
+      name_group: 1
+
+config:
+  base_urls:
+    - file: appsettings.json
+      regex: '"([\w]*(?:Url|Uri|Endpoint|BaseAddress))"\s*:\s*"([^"]+)"'
+    - file: appsettings.Development.json
+      regex: '"([\w]*(?:Url|Uri|Endpoint|BaseAddress))"\s*:\s*"([^"]+)"'
+
+notes: |
+  Refit interfaces give a path but not a host; the host comes from the
+  registered HttpClient. Estate Agent records both and links them when the
+  registration names a service.

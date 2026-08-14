@@ -1,0 +1,111 @@
+# Estate Agent stack profile: AS400 / IBM i (RPG, CL, DB2 for i)
+#
+# This profile is deliberately different from every other one: it describes
+# the system rather than parsing it.
+#
+# No tree-sitter grammar exists for RPGLE. No code-graph tool reads it. And in
+# most estates the AS400 is simultaneously the oldest system, the one with the
+# least test coverage, and the one closest to the money. Pointing an AI agent
+# at it and hoping is not a strategy.
+#
+# So: Estate Agent treats an AS400 repo as an opaque node with a declared
+# interface. You describe what it exposes, once. Agents may explain it and
+# write code that calls it. They may not modify it unless a human deliberately
+# lowers the tier.
+
+stack: as400
+display: AS400 / IBM i
+kind: legacy
+
+detect:
+  extensions:
+    - .rpgle
+    - .sqlrpgle
+    - .rpg
+    - .clle
+    - .clp
+    - .dds
+    - .pf
+    - .lf
+  any_dirs:
+    - QRPGLESRC
+    - QCLSRC
+    - QDDSSRC
+  content_markers:
+    - dcl-proc
+    - EXEC SQL
+    - '/QSYS.LIB'
+
+commands:
+  # Deliberately empty. Builds happen on the box, through whatever change
+  # management your shop uses. Estate Agent does not guess at that.
+  build: ''
+  test: ''
+
+conventions:
+  - Changes go through the shop's change-management process, not through git alone
+  - Never modify a service program signature without a binding-directory review
+  - Record every program and file touched; there is no dependency manager here
+
+# The highest tier by default: read and explain, propose in conversation,
+# write nothing. Lower it only deliberately, and only with a human who knows
+# this system.
+tier_default: 1
+
+provides:
+  # Declared by hand in the deed - this is the whole point of the profile.
+  # `estate init` writes this scaffold into .agent/estate.yaml for a human to
+  # complete, and marks it as needing review rather than inventing entries.
+  declared_interface_template:
+    programs:
+      - name: PAYPOST
+        library: PAYLIB
+        kind: program
+        purpose: 'describe what this program does'
+      - name: PAYSRV
+        library: PAYLIB
+        kind: service-program
+        purpose: 'describe what this service program does'
+    tables:
+      - name: PAYHDR
+        library: PAYLIB
+        purpose: 'payment header records'
+    queues:
+      - name: PAYQ
+        kind: data-queue
+        purpose: 'inbound payment requests'
+    accessed_via:
+      - repo: payments-bridge
+        how: 'JT400 ProgramCall from Java'
+
+consumes:
+  patterns:
+    - name: embedded-sql-table
+      regex: '\bEXEC\s+SQL\s+(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]{0,200}?\b(?:FROM|INTO|UPDATE)\s+(\w+)'
+      table_group: 1
+      via: database
+    - name: rpg-file-declaration
+      regex: '^\s*(?:dcl-f|F)\s*(\w+)'
+      table_group: 1
+      via: database
+    - name: program-call
+      regex: '\b(?:CALL|callp)\s+(?:PGM\()?[''"]?(\w+)'
+      service_group: 1
+      via: file
+    - name: data-queue
+      regex: '\b(?:QSNDDTAQ|QRCVDTAQ)\b[\s\S]{0,120}?(\w{1,10})'
+      topic_group: 1
+      via: queue
+
+notes: |
+  How to work with an AS400 repo in an agentic workflow, in one paragraph:
+  the agent's job is to read it, explain it, and write the code on the other
+  side of the boundary - the Java or .NET bridge, the API in front of it, the
+  tests around it. Its job is not to edit RPG. That restriction is not
+  timidity; it is that nobody can review an agent's RPG change quickly, the
+  test coverage to catch a mistake usually does not exist, and the blast
+  radius reaches the general ledger.
+
+  Fill in the declared interface once. It is the most valuable context file in
+  the estate, because it is the only description of this system that an agent
+  can read at all - and quite possibly the only one written down anywhere.

@@ -1,0 +1,19 @@
+{
+  "name": "estate-agent",
+  "owner": { "name": "Mutaaf Aziz", "url": "https://github.com/mutaaf" },
+  "metadata": {
+    "description": "The standard for AI agents working across your repo estate.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "estate-agent",
+      "source": "./plugin",
+      "description": "Set up repos so agents know how to work in them, map which services call which, and check what breaks before changing an API.",
+      "version": "0.1.0",
+      "homepage": "https://mutaaf.github.io/estate-agent",
+      "license": "MIT",
+      "keywords": ["context", "monorepo", "estate", "safety", "blast-radius"]
+    }
+  ]
+}

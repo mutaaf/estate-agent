@@ -1,0 +1,72 @@
+# Estate Agent stack profile: tvOS
+#
+# Shares Swift's shape but is a separate stack on purpose: tvOS repos have
+# their own release cadence, their own focus-engine constraints, and models
+# know the platform far less well than they know iOS.
+
+stack: tvos
+display: tvOS
+kind: client
+
+detect:
+  files:
+    - '*.xcodeproj'
+    - Package.swift
+  extensions:
+    - .swift
+  # tvOS and iOS repos share every marker file: both have an .xcodeproj and
+  # .swift sources. So one of the signals below is *required*, not merely
+  # additive - without it a repo is iOS, not tvOS.
+  requires_marker: true
+  any_dirs:
+    - tvOS
+    - TVApp
+  content_markers:
+    - TARGETED_DEVICE_FAMILY = 3
+    - platform=tvOS
+    - '.tvOS('
+
+commands:
+  build: xcodebuild -scheme TVApp -destination 'generic/platform=tvOS' build
+  test: xcodebuild test -scheme TVApp -destination 'platform=tvOS Simulator,name=Apple TV'
+  lint: swiftlint
+
+conventions:
+  - Every interactive element must be focusable and testable with the remote
+  - No touch gestures; the focus engine is the only navigation model
+  - Images and layouts target 1920x1080 at 2x, viewed from three metres
+
+tier_default: 2
+
+provides: {}
+
+consumes:
+  patterns:
+    - name: url-literal
+      regex: '\bURL\s*\(\s*string\s*:\s*([^)]+)\)'
+      url_group: 1
+      via: rest
+    - name: endpoint-enum-case
+      regex: '\bcase\s+\w+\s*=\s*["''](/[^"'']+)["'']'
+      path_group: 1
+      via: rest
+    - name: alamofire-request
+      regex: '\bAF\.request\s*\(\s*([^,)]+)'
+      url_group: 1
+      via: rest
+    - name: baseurl-constant
+      regex: '\b(?:baseURL|baseUrl|apiBase)\s*(?::\s*\w+)?\s*=\s*([^\n]+)'
+      url_group: 1
+      via: rest
+
+config:
+  base_urls:
+    - file: Configuration/Production.xcconfig
+      regex: '([A-Z0-9_]*(?:URL|HOST|ENDPOINT))\s*=\s*(.*)'
+
+notes: |
+  Models have seen far less tvOS code than iOS code and will confidently
+  produce iOS idioms that do not compile or do not focus correctly here. Keep
+  this repo's conventions list fuller than you would for iOS, and expect to
+  correct the agent more often. That is a reason to write more context, not
+  less.

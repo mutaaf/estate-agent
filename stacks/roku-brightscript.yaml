@@ -1,0 +1,79 @@
+# Estate Agent stack profile: Roku (BrightScript / SceneGraph)
+#
+# There is no tree-sitter grammar for BrightScript, and no code-graph tool
+# covers it. Pattern matching is the only option here - which is exactly why
+# Estate Agent reads call sites and contracts rather than depending on a
+# parser that will never exist for this platform.
+
+stack: roku-brightscript
+display: Roku (BrightScript)
+kind: client
+
+detect:
+  files:
+    - manifest
+  any_dirs:
+    - components
+    - source
+  extensions:
+    - .brs
+    - .bs
+
+commands:
+  build: zip -r out/app.zip manifest source components images
+  test: ./scripts/run-unit-tests.sh
+  lint: npx @rokucommunity/bslint
+
+conventions:
+  - Every SceneGraph node needs an interface declaration in its XML
+  - Long-running work belongs in a Task node, never on the render thread
+  - Use m.top for node fields; do not reach across the component tree
+  - Roku devices are memory-constrained - release textures and observers
+
+tier_default: 2
+
+provides: {}
+
+consumes:
+  patterns:
+    - name: url-transfer-seturl
+      regex: '\.SetUrl\s*\(\s*([^)]+)\)'
+      url_group: 1
+      via: rest
+    - name: url-transfer-create
+      regex: 'CreateObject\s*\(\s*["'']roUrlTransfer["'']\s*\)'
+      via: rest
+      marker_only: true
+    - name: base-url-assignment
+      regex: '\b(?:baseUrl|BaseUrl|apiBase|endpoint|serviceUrl)\s*=\s*["'']([^"'']+)["'']'
+      url_group: 1
+      via: rest
+    - name: path-concat
+      regex: '\b\w*[Uu]rl\w*\s*=\s*\w+\s*\+\s*["''](/[^"'']+)["'']'
+      path_group: 1
+      via: rest
+    - name: manifest-endpoint
+      regex: '^(\w*(?:url|endpoint|api)\w*)=(.+)$'
+      env_group: 1
+      via: rest
+
+config:
+  base_urls:
+    - file: manifest
+      regex: '^(\w*(?:url|endpoint|api)\w*)=(.+)$'
+    - file: source/Config.brs
+      regex: '\b(\w*(?:Url|Endpoint)\w*)\s*=\s*["'']([^"'']+)["'']'
+
+notes: |
+  Two things to hold in mind for Roku repos.
+
+  First, coverage here is genuinely weaker than for the other stacks. There is
+  no parser, so consumer detection rests on `roUrlTransfer` call sites and
+  configured base URLs. Expect to confirm more edges by hand. Estate Agent
+  will say so rather than pretending otherwise.
+
+  Second, models know BrightScript badly. They will produce code that looks
+  like JavaScript, invent standard-library functions that do not exist, and
+  ignore the render-thread rules. A Roku repo needs a fuller conventions list
+  than a React repo, not a thinner one - the agent needs more help here, not
+  less.

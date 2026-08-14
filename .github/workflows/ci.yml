@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # The oldest Python we claim to support, and current. Estate Agent has
+        # to run on whatever a locked-down work laptop already has.
+        python-version: ['3.9', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run the full suite
+        run: python3 tests/run_all.py
+      - name: Print the measured numbers the docs quote
+        run: python3 tests/run_all.py --report
+
+  no-network:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce the claim in docs/data-flow.md
+        run: python3 tests/test_no_network.py
+
+  self-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Estate Agent must pass its own linter
+        run: python3 tests/test_publishable.py

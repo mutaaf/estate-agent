@@ -1,0 +1,87 @@
+# Estate Agent stack profile: Rust
+
+stack: rust
+display: Rust
+kind: backend
+
+detect:
+  files:
+    - Cargo.toml
+  extensions:
+    - .rs
+
+commands:
+  build: cargo build
+  test: cargo test
+  lint: cargo clippy -- -D warnings
+  format: cargo fmt --check
+
+conventions:
+  - Return Result and let the caller decide; avoid unwrap outside tests
+  - Use the crate's existing error type rather than Box<dyn Error>
+  - Keep async runtime choice consistent with the rest of the workspace
+
+tier_default: 2
+
+provides:
+  contracts:
+    - openapi.yaml
+    - proto/*.proto
+    - schema.graphql
+  routes:
+    - name: axum-route
+      regex: '\.route\s*\(\s*["'']([^"'']+)["'']\s*,\s*(get|post|put|delete|patch)'
+      path_group: 1
+      method_group: 2
+    - name: actix-attribute
+      regex: '#\[(get|post|put|delete|patch)\s*\(\s*["'']([^"'']+)["'']'
+      method_group: 1
+      path_group: 2
+    - name: actix-service
+      regex: '\.service\s*\(\s*web::resource\s*\(\s*["'']([^"'']+)["'']'
+      path_group: 1
+    - name: rocket-attribute
+      regex: '#\[(get|post|put|delete|patch)\s*\(\s*["'']([^"'']+)["'']'
+      method_group: 1
+      path_group: 2
+
+consumes:
+  patterns:
+    - name: reqwest-call
+      regex: '\b(?:client|http|reqwest::Client::new\(\))\s*\.\s*(get|post|put|delete|patch)\s*\(\s*([^)]+)\)'
+      url_group: 2
+      via: rest
+    - name: reqwest-standalone
+      regex: '\breqwest::(get|post)\s*\(\s*([^)]+)\)'
+      url_group: 2
+      via: rest
+    - name: tonic-client
+      regex: '\b(\w+)_client::(\w+)Client::connect\s*\(\s*([^)]+)\)'
+      service_group: 1
+      url_group: 3
+      via: grpc
+    - name: kafka-topic
+      regex: '\.(?:subscribe|send_to)\s*\(\s*&?\[?\s*["'']([^"'']+)["'']'
+      topic_group: 1
+      via: queue
+    - name: sqlx-connect
+      regex: '\b(?:PgPool|MySqlPool|SqlitePool)::connect\s*\(\s*([^)]+)\)'
+      url_group: 1
+      via: database
+
+  client_dependencies:
+    - file: Cargo.toml
+      regex: '^([\w\-]*(?:-client|-sdk|-api))\s*='
+      name_group: 1
+
+config:
+  base_urls:
+    - file: config/default.toml
+      regex: '([\w_]*(?:url|uri|endpoint))\s*=\s*["'']([^"'']+)["'']'
+    - file: .env.example
+      regex: '([A-Z0-9_]*(?:URL|URI|ENDPOINT))\s*=\s*(.*)'
+
+notes: |
+  format!("{}/v2/charge", base_url) is captured with the format string
+  intact. The literal path fragment is usually enough to match against a
+  provider's declared endpoints.

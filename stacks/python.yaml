@@ -1,0 +1,104 @@
+# Estate Agent stack profile: Python
+#
+# Not one of the ten stacks in the original estate, but included because it is
+# everywhere, and because Estate Agent's own dogfooding runs against Python
+# repos. A stack profile is one file - that is the point of the format.
+
+stack: python
+display: Python
+kind: backend
+
+detect:
+  files:
+    - pyproject.toml
+    - setup.py
+    - requirements.txt
+    - Pipfile
+  extensions:
+    - .py
+
+commands:
+  install: pip install -e .
+  build: python -m build
+  test: pytest
+  lint: ruff check .
+  format: ruff format --check .
+  alternatives:
+    - when: poetry.lock
+      install: poetry install
+      test: poetry run pytest
+    - when: uv.lock
+      install: uv sync
+      test: uv run pytest
+
+conventions:
+  - Type hints on public functions; run the type checker before committing
+  - Use the project's existing logging setup, not print
+  - Keep I/O at the edges so the core stays testable
+
+tier_default: 2
+
+provides:
+  contracts:
+    - openapi.yaml
+    - openapi.json
+    - schema.graphql
+    - proto/*.proto
+  routes:
+    - name: fastapi-route
+      regex: '@(?:app|router)\.(get|post|put|delete|patch)\s*\(\s*["'']([^"'']+)["'']'
+      method_group: 1
+      path_group: 2
+    - name: flask-route
+      regex: '@(?:app|bp|blueprint)\.route\s*\(\s*["'']([^"'']+)["'']'
+      path_group: 1
+    - name: django-urlpattern
+      regex: '\bpath\s*\(\s*["'']([^"'']*)["'']'
+      path_group: 1
+
+consumes:
+  patterns:
+    - name: requests-call
+      regex: '\brequests\.(get|post|put|delete|patch)\s*\(\s*([^,)]+)'
+      url_group: 2
+      via: rest
+    - name: httpx-call
+      regex: '\b(?:httpx|client)\.(get|post|put|delete|patch)\s*\(\s*([^,)]+)'
+      url_group: 2
+      via: rest
+    - name: aiohttp-call
+      regex: '\bsession\.(get|post|put|delete|patch)\s*\(\s*([^,)]+)'
+      url_group: 2
+      via: rest
+    - name: base-url-const
+      regex: '\b([A-Z_]*(?:BASE_URL|API_URL|ENDPOINT|_URL))\s*=\s*(.+)'
+      env_group: 1
+      url_group: 2
+      via: rest
+    - name: kafka-topic
+      regex: '\b(?:KafkaConsumer|KafkaProducer|subscribe|send)\s*\(\s*["'']([^"'']+)["'']'
+      topic_group: 1
+      via: queue
+    - name: celery-task
+      regex: '@(?:app|celery)\.task[\s\S]{0,80}?def\s+(\w+)'
+      topic_group: 1
+      via: queue
+    - name: sqlalchemy-engine
+      regex: '\bcreate_engine\s*\(\s*([^)]+)\)'
+      url_group: 1
+      via: database
+
+  client_dependencies:
+    - file: pyproject.toml
+      regex: '^\s*["'']?([\w\-]*(?:-client|-sdk|-api))["'']?\s*[=><]'
+      name_group: 1
+    - file: requirements.txt
+      regex: '^([\w\-]*(?:-client|-sdk))\s*[=><]'
+      name_group: 1
+
+config:
+  base_urls:
+    - file: .env.example
+      regex: '([A-Z0-9_]*(?:URL|URI|ENDPOINT))\s*=\s*(.*)'
+    - file: config.py
+      regex: '\b([A-Z_]*(?:URL|ENDPOINT))\s*=\s*(.+)'

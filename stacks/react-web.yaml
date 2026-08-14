@@ -1,0 +1,92 @@
+# Estate Agent stack profile: React web
+
+stack: react-web
+display: React (web)
+kind: client
+
+detect:
+  files:
+    - package.json
+    - next.config.js
+    - next.config.mjs
+    - vite.config.ts
+  extensions:
+    - .tsx
+    - .jsx
+  content_markers:
+    - '"react":'
+    - '"next":'
+
+commands:
+  install: npm ci
+  build: npm run build
+  test: npm test
+  lint: npm run lint
+  alternatives:
+    - when: pnpm-lock.yaml
+      install: pnpm install --frozen-lockfile
+      build: pnpm build
+      test: pnpm test
+      lint: pnpm lint
+
+conventions:
+  - Data fetching goes through the API client layer, not inline in components
+  - Server state belongs in the query cache, not in component state
+  - No secrets in anything prefixed NEXT_PUBLIC_ or VITE_ - it ships to browsers
+
+tier_default: 2
+
+provides:
+  # A Next.js app can expose API routes, which makes it a provider too.
+  routes:
+    - name: next-app-router-handler
+      regex: 'export\s+async\s+function\s+(GET|POST|PUT|DELETE|PATCH)\s*\('
+      method_group: 1
+      path_from_filename: true
+    - name: next-pages-api
+      regex: 'export\s+default\s+(?:async\s+)?function\s+handler\s*\('
+      path_from_filename: true
+
+consumes:
+  patterns:
+    - name: fetch-call
+      regex: '\bfetch\s*\(\s*([^,)]+)'
+      url_group: 1
+      via: rest
+    - name: axios-call
+      regex: '\baxios\.(get|post|put|delete|patch)\s*\(\s*([^,)]+)'
+      url_group: 2
+      via: rest
+    - name: react-query-url
+      regex: '\bqueryKey\s*:\s*\[\s*["'']([^"'']+)["'']'
+      path_group: 1
+      via: rest
+    - name: swr-key
+      regex: '\buseSWR\s*\(\s*([^,)]+)'
+      url_group: 1
+      via: rest
+    - name: graphql-operation
+      regex: '\b(?:gql|graphql)`\s*(?:query|mutation)\s+(\w+)'
+      operation_group: 1
+      via: graphql
+    - name: env-api-base
+      regex: '\b(?:process\.env|import\.meta\.env)\.((?:NEXT_PUBLIC_|VITE_|REACT_APP_)?[A-Z0-9_]*(?:URL|API|ENDPOINT)[A-Z0-9_]*)'
+      env_group: 1
+      via: rest
+
+  client_dependencies:
+    - file: package.json
+      regex: '"(@[\w.\-]+/[\w.\-]*(?:client|sdk|api)|[\w.\-]*-(?:client|sdk))"\s*:'
+      name_group: 1
+
+config:
+  base_urls:
+    - file: .env.example
+      regex: '((?:NEXT_PUBLIC_|VITE_|REACT_APP_)?[A-Z0-9_]*(?:URL|ENDPOINT|API))\s*=\s*(.*)'
+    - file: .env.production
+      regex: '([A-Z0-9_]*(?:URL|ENDPOINT|API))\s*=\s*(.*)'
+
+notes: |
+  A Next.js app is often both a consumer and a provider: its API routes act as
+  a backend-for-frontend in front of the real services. Estate Agent records
+  both directions, so the BFF shows up as a hop rather than a dead end.

@@ -1,0 +1,78 @@
+# Estate Agent stack profile: Android (Kotlin)
+
+stack: android-kotlin
+display: Android (Kotlin)
+kind: client
+
+detect:
+  files:
+    - AndroidManifest.xml
+    - app/build.gradle
+    - app/build.gradle.kts
+  extensions:
+    - .kt
+  content_markers:
+    - com.android.application
+    - com.android.library
+
+commands:
+  build: ./gradlew assembleDebug
+  test: ./gradlew testDebugUnitTest
+  lint: ./gradlew lintDebug
+  format: ./gradlew ktlintCheck
+
+conventions:
+  - Networking through the shared Retrofit service interfaces only
+  - Collect flows in the view model, never in the fragment
+  - No blocking calls on the main dispatcher
+
+tier_default: 2
+
+provides: {}
+
+consumes:
+  patterns:
+    # Retrofit is the clearest consumer signal in any Android estate: the
+    # method annotation gives the exact path.
+    - name: retrofit-method
+      regex: '@(GET|POST|PUT|DELETE|PATCH)\s*\(\s*["'']([^"'']+)["'']'
+      method_group: 1
+      path_group: 2
+      via: rest
+      confidence: declared
+    - name: retrofit-baseurl
+      regex: '\.baseUrl\s*\(\s*([^)]+)\)'
+      url_group: 1
+      via: rest
+    - name: okhttp-url
+      regex: '\.url\s*\(\s*([^)]+)\)'
+      url_group: 1
+      via: rest
+    - name: ktor-client
+      regex: '\b(?:client|httpClient)\.(get|post|put|delete|patch)\s*(?:<[^>]*>)?\s*\(\s*([^)]+)\)'
+      url_group: 2
+      via: rest
+    - name: grpc-stub
+      regex: '\b(\w+)(?:Coroutine)?Grpc(?:Kt)?\.\w*[Ss]tub'
+      service_group: 1
+      via: grpc
+
+  client_dependencies:
+    - file: app/build.gradle
+      regex: '["''][\w.\-]+:([\w.\-]*(?:client|sdk|api))[:"'']'
+      name_group: 1
+    - file: gradle/libs.versions.toml
+      regex: '^([\w\-]*(?:-client|-sdk))\s*='
+      name_group: 1
+
+config:
+  base_urls:
+    - file: app/build.gradle
+      regex: 'buildConfigField[^,]*,\s*["'']([A-Z0-9_]*(?:URL|ENDPOINT))["'']\s*,\s*["'']\\?"?([^"''\\]+)'
+    - file: app/src/main/res/values/config.xml
+      regex: '<string name="([\w]*(?:url|endpoint))">([^<]+)</string>'
+
+notes: |
+  Retrofit interfaces are the highest-signal consumer evidence in the whole
+  estate: one annotation gives method and path with no ambiguity. Where a repo
+  uses Retrofit, expect near-complete consumer coverage.

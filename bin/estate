@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Estate Agent launcher. No install step, no dependencies: it finds the source
+# next to itself and runs it with whatever Python 3 the machine has.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+root="$(dirname "$here")"
+
+for candidate in python3 python; do
+  if command -v "$candidate" >/dev/null 2>&1; then
+    if "$candidate" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null; then
+      exec env PYTHONPATH="$root/src${PYTHONPATH:+:$PYTHONPATH}" "$candidate" -m estate_agent "$@"
+    fi
+  fi
+done
+
+echo "estate: needs Python 3.9 or newer on PATH" >&2
+exit 1

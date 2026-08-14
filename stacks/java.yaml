@@ -1,0 +1,141 @@
+# Estate Agent stack profile: Java
+#
+# One file per stack. It carries everything Estate Agent knows about a
+# language: how to recognise it, how to build and test it, how it declares
+# HTTP endpoints, and how it calls other services.
+#
+# Adding a new language to Estate Agent means writing one of these. That is
+# the whole extension model.
+
+stack: java
+display: Java
+kind: backend
+
+detect:
+  files:
+    - pom.xml
+    - build.gradle
+    - build.gradle.kts
+    - settings.gradle
+  extensions:
+    - .java
+  # A repo needs a marker file, or enough source files, to count as this stack.
+  min_source_files: 3
+
+commands:
+  build: ./gradlew build -x test
+  test: ./gradlew test
+  lint: ./gradlew check
+  # Overridden at init time when a pom.xml is found instead of Gradle.
+  alternatives:
+    - when: pom.xml
+      build: mvn -q -DskipTests package
+      test: mvn -q test
+      lint: mvn -q verify -DskipTests
+
+conventions:
+  - Prefer constructor injection over field injection
+  - Keep controllers thin; business logic belongs in services
+  - Use the existing exception handler rather than catching broadly
+
+tier_default: 2
+
+provides:
+  contracts:
+    - openapi.yaml
+    - openapi.yml
+    - swagger.json
+    - src/main/resources/openapi.yaml
+    - api/*.proto
+  routes:
+    - name: spring-method-mapping
+      regex: '@(Get|Post|Put|Delete|Patch)Mapping\s*\(\s*(?:value\s*=\s*)?["'']([^"'']+)["'']'
+      method_group: 1
+      path_group: 2
+    - name: spring-request-mapping
+      regex: '@RequestMapping\s*\(\s*(?:value\s*=\s*)?["'']([^"'']+)["'']'
+      path_group: 1
+    - name: jaxrs-path
+      regex: '@Path\s*\(\s*["'']([^"'']+)["'']'
+      path_group: 1
+    - name: javalin-route
+      regex: '\bapp\.(get|post|put|delete|patch)\s*\(\s*["'']([^"'']+)["'']'
+      method_group: 1
+      path_group: 2
+
+consumes:
+  patterns:
+    # Highest confidence: the service is named outright.
+    - name: feign-client
+      regex: '@FeignClient\s*\(\s*(?:name|value)\s*=\s*["'']([^"'']+)["'']'
+      service_group: 1
+      via: rest
+      confidence: declared
+
+    - name: resttemplate
+      regex: '\brestTemplate\.(getForObject|getForEntity|postForObject|postForEntity|put|delete|exchange)\s*\(\s*([^,)]+)'
+      url_group: 2
+      via: rest
+
+    - name: webclient-uri
+      regex: '\.uri\s*\(\s*([^,)]+)'
+      url_group: 1
+      via: rest
+
+    - name: okhttp-url
+      regex: '\.url\s*\(\s*([^,)]+)'
+      url_group: 1
+      via: rest
+
+    - name: grpc-stub
+      regex: '\b(\w+)Grpc\.newBlockingStub|\b(\w+)Grpc\.newStub'
+      service_group: 1
+      via: grpc
+
+    - name: kafka-topic
+      regex: '@KafkaListener\s*\(\s*topics\s*=\s*["'']?\{?\s*["'']([^"'']+)["'']'
+      topic_group: 1
+      via: queue
+
+    - name: kafka-send
+      regex: '\bkafkaTemplate\.send\s*\(\s*["'']([^"'']+)["'']'
+      topic_group: 1
+      via: queue
+
+    - name: jms-queue
+      regex: '\b(?:jmsTemplate|mqQueue)\w*\.\w+\s*\(\s*["'']([^"'']+)["'']'
+      topic_group: 1
+      via: queue
+
+    # The JT400 bridge is how most Java estates reach an AS400.
+    - name: as400-program-call
+      regex: '\bnew\s+(?:ProgramCall|ServiceProgramCall|CommandCall)\s*\('
+      via: database
+      service_hint: as400
+
+    - name: as400-connection
+      regex: '\bnew\s+AS400\s*\(\s*["'']([^"'']+)["'']'
+      via: database
+      service_hint: as400
+
+  # Dependencies that name another service directly.
+  client_dependencies:
+    - file: pom.xml
+      regex: '<artifactId>([\w.\-]*(?:-client|-sdk|Client|Sdk))</artifactId>'
+      name_group: 1
+    - file: build.gradle
+      regex: '["''][\w.\-]+:([\w.\-]*(?:client|sdk))[:"'']'
+      name_group: 1
+
+config:
+  base_urls:
+    - file: src/main/resources/application.yml
+      regex: '(?:url|base-url|baseUrl|uri)\s*:\s*["'']?(https?://[^\s"'']+|\$\{[^}]+\})'
+    - file: src/main/resources/application.properties
+      regex: '([\w.\-]*(?:url|uri))\s*=\s*(.+)'
+
+notes: |
+  Class-level @RequestMapping prefixes are recorded separately from
+  method-level paths and are not concatenated. A path shown as /charge may
+  really be /v2/charge. Estate Agent reports what it can prove from a single
+  line and leaves the joining to you rather than inventing a path.
