@@ -36,6 +36,10 @@ EXEMPT = {
     # report strips them. The fakes have to be there for the test to mean
     # anything.
     "tests/test_report.py",
+    # Estate Agent runs `estate init` on itself, which installs a copy of the
+    # guard here. Same file, same reason for exemption. A test below asserts
+    # the copy has not drifted from its source.
+    ".agent/hooks/secret_guard.py",
 }
 
 SCANNED_SUFFIXES = {
@@ -324,6 +328,20 @@ class NothingImportantIsIgnored(unittest.TestCase):
             [], missing,
             "these exist on disk but are not committed - check .gitignore:\n  "
             + "\n  ".join(missing),
+        )
+
+    def test_the_installed_guard_matches_its_source(self) -> None:
+        """This repo dogfoods itself, so it carries an installed copy of the
+        secret guard. A copy that drifts from its source is a copy that stops
+        being the thing under test."""
+        source = ROOT / "hooks" / "secret_guard.py"
+        installed = ROOT / ".agent" / "hooks" / "secret_guard.py"
+        if not installed.is_file():
+            self.skipTest("not initialised on itself")
+        self.assertEqual(
+            source.read_text(encoding="utf-8"),
+            installed.read_text(encoding="utf-8"),
+            "run `estate init . --force` to refresh the installed copy",
         )
 
     def test_every_stack_profile_is_tracked(self) -> None:

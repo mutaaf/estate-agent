@@ -1,0 +1,125 @@
+estate_agent_version: "0.1.0"
+repo:
+  name: estate-agent
+  summary: >
+    The standard for AI agents working across a repo estate. One context file
+    per repo that every assistant reads, a cross-repo service map built from
+    contracts rather than parsers, guardrails that block credential access,
+    and a repair loop that keeps it all true.
+  stack: python
+  tier: 2
+
+commands:
+  test: python3 tests/run_all.py
+  report: python3 tests/run_all.py --report
+  site: python3 site/build.py
+  lint: python3 tests/test_publishable.py
+
+conventions:
+  - >
+    Precision over recall, everywhere. A phantom connection is worse than a
+    missing one: a missed connection gets added by hand and stays added, while
+    one false alarm stops the whole map being trusted. When in doubt, ask a
+    question rather than emit an edge.
+  - >
+    Every claim carries its evidence. An edge cites file:line and records how
+    it was resolved. If it cannot be evidenced, it does not ship.
+  - >
+    Never silently truncate, skip or drop. A cap that hides what it dropped
+    produces confident wrong answers; report it instead. Several real bugs
+    here were silent drops.
+  - >
+    A check that cries wolf is worse than no check. False positives get the
+    guard switched off, and a switched-off guard protects nothing. Measure the
+    false-positive rate, do not just assert it.
+  - >
+    Match the existing prose style in docs - plain language, no jargon without
+    a definition, every doc opens with what it is for and stays under two
+    pages.
+  - Python 3.9 is the floor. tests/test_python_compat.py enforces it.
+  - >
+    Comments explain why, not what. Where a rule exists because a real bug was
+    found, say so - those comments are the reason the rule survives refactors.
+
+never_do:
+  - >
+    Add a dependency. Zero dependencies is what makes this installable on a
+    locked-down work laptop and what keeps docs/data-flow.md verifiable in a
+    minute. tests/test_no_network.py fails the build if one appears.
+  - >
+    Add network code of any kind, including telemetry, update checks or
+    analytics. The no-network claim is load-bearing and enforced by a test.
+  - >
+    Overwrite something a human wrote. Generated files carry a content hash so
+    a hand edit is distinguishable from a stale file; hand edits are preserved
+    and offered for promotion, never clobbered.
+  - >
+    Loosen a safety rule automatically. Auto-tuning may suggest; only a person
+    applies. Automated changes tighten or report, never widen.
+  - >
+    Put anything identifying into this repo - company names, internal
+    hostnames, employee names, real credentials. Your estate shapes the
+    detection patterns, never the names. Enforced over files and git history.
+  - >
+    Confuse levels with tiers. A level is how far someone has adopted (0-4); a
+    tier is what one repo lets an agent do (1-3). They are numbered separately
+    on purpose.
+  - >
+    Make the CLI punny. The project name is a joke; `estate scan` and
+    `estate init` are not.
+
+architecture: |
+  A CLI over a scanner, with no server and no database.
+
+    bin/estate            launcher; finds src/ next to itself, no install step
+    src/estate_agent/
+      cli.py              command dispatch; subcommands imported lazily
+      yamlite.py          the YAML subset reader/writer (no PyYAML fallback,
+                          deliberately - two parsers means the one you test is
+                          not the one that runs)
+      deed.py             .agent/estate.yaml: schema, validation, tiers
+      render.py           deed -> five assistant files, with the drift stamp
+      stacks.py           loads stacks/*.yaml; detection and classification
+      discover.py         walks repos, extracts endpoints and call signals
+      infra.py            shared clusters, caches, datastores
+      graph.py            the resolution ladder; signals -> edges or questions
+      impact.py           blast radius and landing order
+      scan/doctor/initialise/upkeep/vault/report/contribute.py   commands
+    stacks/*.yaml         one file per language; the whole extension model
+    hooks/secret_guard.py single-file PreToolUse hook, copied into user repos
+    tests/                run with `python3 tests/run_all.py`, no test runner
+    site/                 stdlib generator for the GitHub Pages site
+
+  The resolution ladder in graph.py is the core idea: declared > dependency >
+  env > host > path, with anything ambiguous becoming a question. Read
+  docs/estate.md before changing it.
+
+notes: |
+  READ THIS FIRST IF YOU ARE AN AGENT PICKING UP WORK HERE.
+
+  What this project is for, in one line: an AI agent in one repo cannot see
+  the other ninety, and nothing stops it doing damage. Everything here exists
+  to fix one of those two problems, or to stop the fix going stale.
+
+  How to make a change well:
+
+  1. Run `python3 tests/run_all.py` first. 182 tests, seconds, no setup.
+  2. Read `docs/` for the area you are touching. The docs are the design; the
+     code follows them, not the other way round.
+  3. For anything touching detection or resolution, run
+     `python3 tests/run_all.py --report` before and after. Precision must stay
+     at 100% on the fixture. Recall may improve; precision may not regress.
+  4. Field-test it. `docs/field-testing.md` lists the bugs found by running
+     this against real repositories - performance, phantom edges, silent
+     truncation, content loss. Every one was invisible by reading the code and
+     obvious within a minute of running it. Reasoning about a scanner tells you
+     almost nothing.
+
+  Adding a language is one YAML file in `stacks/` and no code. That is the
+  main way this project grows - see docs/adding-a-stack.md and
+  `estate contribute stack <repo>`, which scaffolds one from real code with
+  redaction applied.
+
+  The rules in `never_do` above are not style preferences. Each one is
+  load-bearing and most were learned the hard way; CONTRIBUTING.md explains
+  why for each.

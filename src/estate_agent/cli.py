@@ -36,9 +36,14 @@ USAGE = """estate - the standard for AI agents working across your repo estate
     estate vault [workspace]  write the estate as linked markdown notes
                               (Obsidian, GitHub, rg, or an AI agent)
 
-  Report a problem
+  Report a problem, or extend it
     estate report [workspace] a diagnostic with names and paths removed,
                               safe to attach to a bug report
+    estate contribute stack <repo>
+                              scaffold a profile for a language it does
+                              not cover yet, redacted for sharing
+    estate contribute check <profile.yaml> [repo]
+                              validate a profile and try it on real code
 
   Other
     estate version
@@ -241,6 +246,9 @@ def main(argv: list[str] | None = None) -> int:
     if name == "report":
         from .report import cmd_report
         return cmd_report(args)
+    if name == "contribute":
+        from .contribute import cmd_contribute
+        return cmd_contribute(args)
 
     handler = COMMANDS.get(name)
     if handler is None:

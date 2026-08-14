@@ -145,6 +145,19 @@ def _tier_block(deed: Deed) -> str:
     )
 
 
+def _architecture_block(text: str) -> str:
+    """Fence an indented architecture description.
+
+    A directory tree pasted straight into markdown collapses into one
+    unreadable paragraph in every viewer. If any line is indented, it is
+    structure and wants a code fence.
+    """
+    body = text.strip("\n").rstrip()
+    if any(line.startswith(("  ", "\t")) for line in body.splitlines()):
+        return f"```\n{body}\n```"
+    return body
+
+
 def build_body(deed: Deed) -> str:
     """The shared content. Every client file wraps this."""
     name = deed.name or "this repo"
@@ -168,7 +181,9 @@ def build_body(deed: Deed) -> str:
         sections.append("## Conventions\n\n" + _bullets(deed.conventions))
 
     if deed.architecture:
-        sections.append("## Architecture\n\n" + deed.architecture.strip())
+        sections.append(
+            "## Architecture\n\n" + _architecture_block(deed.architecture)
+        )
 
     sections.append("## This service in the estate\n\n" + _estate_block(deed))
 

@@ -250,6 +250,21 @@ def _parse_list(lines: list[_Line], index: int, indent: int) -> tuple[list, int]
         rest = line.text[1:].strip()
         index += 1
 
+        if rest in ("|", ">", "|-", ">-", "|+", ">+"):
+            # A block scalar as a list item:
+            #
+            #     conventions:
+            #       - >
+            #         a long sentence wrapped
+            #         across several lines
+            #
+            # Natural to write, and the format's own documentation used it
+            # before the parser supported it.
+            style, chomp = rest[0], (rest[1] if len(rest) > 1 else "")
+            value, index = _block_scalar(lines, index, line.indent, style, chomp)
+            items.append(value)
+            continue
+
         if rest == "":
             if index < len(lines) and lines[index].indent > indent:
                 value, index = _parse_block(lines, index, lines[index].indent)

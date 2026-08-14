@@ -184,6 +184,7 @@ says where it is less confident rather than letting you assume even coverage.
 | wondering what a word means | [docs/glossary.md](docs/glossary.md) |
 | already running a docs initiative | [docs/interop.md](docs/interop.md) |
 | trying it on real repos and hitting bugs | [docs/field-testing.md](docs/field-testing.md) |
+| wanting to extend it | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
 Also: [the five levels](docs/levels.md) · [tiers](docs/tiers.md) · [the map](docs/estate.md) ·
 [self-healing](docs/self-healing.md) ·
@@ -206,13 +207,29 @@ report **UNREDACTED** so nobody forwards it by accident. See
 
 ---
 
-## Status
-
 v0.1.0, first release. Built by working through a real ten-stack estate, and
 dogfooded on real repos rather than only on its own fixtures.
 
-Contributions especially wanted for **stack profiles** — adding a language is
-one YAML file and no code. See [CONTRIBUTING.md](CONTRIBUTING.md) and
-[docs/adding-a-stack.md](docs/adding-a-stack.md).
+## Contributing, including from a locked-down machine
+
+The most valuable contribution is a **stack profile** for a language this does
+not cover. Adding one is a single YAML file and no code.
+
+```bash
+estate contribute stack ~/work/that-repo --name elixir   # scaffold, redacted
+estate contribute check elixir.yaml ~/work/that-repo     # validate and try it
+```
+
+The scaffold strips repo names, hostnames, URL paths and usernames, never
+samples documentation, and honours a git-ignored `.publish-denylist` — so it is
+safe to produce on a work machine. If you cannot push from there, paste it into
+an issue; a stack profile is one file.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for all three routes and
+[docs/adding-a-stack.md](docs/adding-a-stack.md) for the format.
+
+---
+
+## Status
 
 MIT licensed.

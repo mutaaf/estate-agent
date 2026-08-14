@@ -153,6 +153,24 @@ class BlockScalars(unittest.TestCase):
         )
         self.assertEqual("one sentence split across two lines\n", data["summary"])
 
+    def test_block_scalar_as_a_list_item(self) -> None:
+        """Natural to write, and the project's own deed does it."""
+        data = yamlite.load(
+            "conventions:\n"
+            "  - >\n"
+            "    Precision over recall, everywhere. A phantom connection\n"
+            "    is worse than a missing one.\n"
+            "  - Plain item\n"
+            "  - |\n"
+            "    Line one\n"
+            "    Line two\n"
+        )
+        self.assertEqual(3, len(data["conventions"]))
+        self.assertIn("Precision over recall", data["conventions"][0])
+        self.assertNotIn("\n", data["conventions"][0].rstrip("\n"))
+        self.assertEqual("Plain item", data["conventions"][1])
+        self.assertEqual("Line one\nLine two\n", data["conventions"][2])
+
     def test_strip_chomping(self) -> None:
         data = yamlite.load("note: |-\n  no trailing newline\n")
         self.assertEqual("no trailing newline", data["note"])
