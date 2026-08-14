@@ -59,6 +59,16 @@ instead. See [self-healing](self-healing.md).
 Estate Agent's secret guard is a hook that runs *before* every tool call and
 can block it.
 
+**Infrastructure** — a shared cluster, cache, database or queue. Two services
+join the same node only when they name the same host or declared resource; a
+container image in one repo's compose file is local development, not a shared
+production cluster.
+
+**Level** — how far *you* have adopted, from 0 (nothing) to 4 (it stays true on
+its own). Not to be confused with a *tier*: a level describes your adoption, a
+tier describes what one repo lets an agent do. See
+[the five levels](levels.md).
+
 **MCP** — Model Context Protocol, a standard way to give an assistant access to
 an external tool or data source. Estate Agent does not require any MCP server;
 some optional level-3 tools use one.
@@ -95,10 +105,16 @@ means adding one file and no code.
 **Stack profile** — that file. It holds detection rules, build and test
 commands, conventions, and the patterns for finding endpoints and call sites.
 
-**Tier** — how much autonomy an agent gets in a repo: 1 restricted, 2 reviewed,
-3 autonomous. See [tiers](tiers.md).
+**Tier** — how much autonomy an agent gets in a repo: 1 restricted, 2
+reviewed, 3 autonomous. Distinct from a *level*, which is how far you have
+adopted overall. See [tiers](tiers.md).
 
 **Upkeep** — `estate upkeep`, the self-healing command.
+
+**Vault** — the estate written as linked markdown: `estate vault`. Generated
+notes under `Generated/`, human-authored ones (investigations, decisions,
+runbooks, concepts) in sibling trees that link into them. Readable in Obsidian,
+GitHub, `rg`, or by an agent.
 
 **Workspace** — the directory holding your repos, the thing you point `estate
 scan` at.

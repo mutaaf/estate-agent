@@ -89,23 +89,45 @@ agent, and a permission profile that denies force-pushes, deploys and secret
 reads. Measured, not asserted: **32/32 real credentials blocked, 0 false
 positives on 44 pieces of ordinary code** (`python3 tests/run_all.py --report`).
 
+**Shared infrastructure.** Which services share a cache, a database or a
+queue — identified by the actual host or cluster, so a local Postgres in one
+repo's compose file never masquerades as a shared production database.
+
+**A vault, if you want one.** `estate vault` writes the whole map as
+wikilinked markdown with YAML frontmatter, plus scaffolded trees for the things
+only a person can write. Open it in Obsidian, read it on GitHub, `rg` it, or
+point an agent at it.
+
 **Self-healing.** Notes go stale; this is the part that fixes them. See
 [docs/self-healing.md](docs/self-healing.md).
 
 ---
 
-## Three levels — stop wherever you like
+## The five levels
 
-| | **1. Context & safety** | **2. The map** | **3. Optional extras** |
+Adoption is a ladder, not a switch. Each level is worth having on its own, and
+you can stop at any of them.
+
+| | | What it gets you | Cost |
 |---|---|---|---|
-| Installs anything? | No | No | Yes |
-| Sends data anywhere? | **No** | **No** | See [data-flow](docs/data-flow.md) |
-| Works for all stacks? | Yes | Yes | No |
-| Time | ~15 min/repo | ~30 min once | Half a day |
+| **0** | Nothing | The agent guesses, confidently, and you cannot tell when it is wrong | — |
+| **1** | The repo explains itself | One file per repo → context for all five assistants | ~15 min/repo |
+| **2** | Mistakes are blocked | Credentials and irreversible commands stopped at execution | included |
+| **3** | The estate is mapped | *"What breaks if I change this endpoint?"* — answered, with evidence | ~30 min once |
+| **4** | It stays true on its own | CI drift check, self-repair, and a home for human knowledge | one CI line |
 
-Levels 1 and 2 are plain Python and shell with zero dependencies. That is
-deliberate: most companies will never approve a third-party code indexer, and
-this has to work at those companies too.
+**Not sure where you are?** The site has an [interactive version with a
+four-question self-check](https://mutaaf.github.io/estate-agent/#levels) that
+tells you your level and the single next step. The full description of each
+level, in plain language, is in [docs/levels.md](docs/levels.md).
+
+Levels 1–3 need nothing installed — plain Python and shell, zero dependencies.
+That is deliberate: most companies will never approve a third-party code
+indexer, and this has to work at those companies too.
+
+> **Levels are not tiers.** A **level** is how far you have adopted. A **tier**
+> is how much a single repo lets an agent do — read-only, pull requests, or
+> merge on green CI. See [docs/tiers.md](docs/tiers.md).
 
 ---
 
@@ -126,6 +148,31 @@ because it never has to understand either one.
 
 ---
 
+## What this is not
+
+Estate Agent generates the **structural** layer — what exists, what calls what,
+what shares which cluster. It does not produce the knowledge that matters most,
+and does not pretend to:
+
+| It generates | Only a person can write |
+|---|---|
+| What services exist and their stacks | Why this design was chosen |
+| Which service calls which, with evidence | What broke last time, and how it was found |
+| Which services share a cache or database | How to reproduce a specific bug |
+| Where the notes have gone stale | Which cross-cutting concerns actually matter |
+
+So it is a **component**, not a strategy. If you already have a documentation
+or knowledge-graph initiative, `estate vault` emits linked markdown with
+scaffolded human trees (`Investigations/`, `Decisions/`, `Runbooks/`) designed
+to sit alongside it —
+see [using this inside an initiative you already have](docs/interop.md).
+
+It also will not: replace review or ownership; know why anything is the way it
+is; or achieve perfect recall — it is weakest on stacks with no parser, and it
+says where it is less confident rather than letting you assume even coverage.
+
+---
+
 ## Documentation
 
 | If you are… | Read |
@@ -135,8 +182,9 @@ because it never has to understand either one.
 | reviewing this for security | [docs/data-flow.md](docs/data-flow.md) |
 | new to AI coding agents | [docs/plain-english.md](docs/plain-english.md) |
 | wondering what a word means | [docs/glossary.md](docs/glossary.md) |
+| already running a docs initiative | [docs/interop.md](docs/interop.md) |
 
-Also: [tiers](docs/tiers.md) · [the map](docs/estate.md) ·
+Also: [the five levels](docs/levels.md) · [tiers](docs/tiers.md) · [the map](docs/estate.md) ·
 [self-healing](docs/self-healing.md) ·
 [a worked example](docs/workflows/cross-repo-change.md) ·
 [adding a language](docs/adding-a-stack.md)

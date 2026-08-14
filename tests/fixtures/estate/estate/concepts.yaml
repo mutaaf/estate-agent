@@ -1,0 +1,16 @@
+# Cross-cutting concerns. Curated by hand on purpose: nothing in the code says
+# "this is the caching story", so nothing here is inferred.
+concepts:
+  - name: Caching
+    description: >
+      How the estate caches, what it invalidates on, and which services share
+      a cluster. Start at the shared cache node.
+    services:
+      - payments-api
+      - ledger-rust
+  - name: Payments
+    description: Taking money, refunding it, and recording it in the ledger.
+    services:
+      - payments-api
+      - ledger-rust
+      - checkout-node

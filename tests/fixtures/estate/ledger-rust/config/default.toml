@@ -1,0 +1,5 @@
+[cache]
+url = "redis://shared-cache-prod.internal:6379"
+
+[database]
+url = "postgres://ledger-db-prod.internal:5432/ledger"

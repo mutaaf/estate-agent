@@ -1,0 +1,118 @@
+# Estate Agent stack profile: Lua / OpenResty / nginx
+#
+# Routing and proxy layers are disproportionately important to map and
+# disproportionately badly covered. They are usually the single node with the
+# most edges in an estate - everything goes through them - and they are written
+# in a configuration language no code-graph tool reads.
+#
+# They are also where a change has the widest blast radius: an upstream
+# rewritten in nginx config affects every service behind it, with no compiler,
+# no type system and often no test to catch it.
+
+stack: lua-nginx
+display: Lua / nginx (routing)
+kind: backend
+
+detect:
+  files:
+    - nginx.conf
+    - conf/nginx.conf
+    - openresty.conf
+  extensions:
+    - .lua
+  any_dirs:
+    - lua
+    - conf.d
+  content_markers:
+    - openresty
+    - proxy_pass
+    - content_by_lua
+
+commands:
+  build: ''
+  test: resty ./spec/run.lua
+  lint: luacheck .
+
+conventions:
+  - Routing changes affect every service behind this layer; check the blast radius first
+  - Keep Lua out of the request path where nginx config can do the job
+  - Never call a blocking API from inside a request phase
+
+tier_default: 2
+
+provides:
+  routes:
+    - name: nginx-location
+      regex: '^\s*location\s+(?:[~=^*]+\s+)?([^\s{]+)'
+      path_group: 1
+    - name: lua-route-table
+      regex: '\[\s*["'']([^"'']+)["'']\s*\]\s*=\s*(?:function|{)'
+      path_group: 1
+
+consumes:
+  patterns:
+    # The most important pattern in this file. `proxy_pass` names the upstream
+    # outright, which is the strongest kind of evidence there is.
+    - name: proxy-pass
+      regex: '\bproxy_pass\s+https?://([\w.\-${}]+)'
+      url_group: 1
+      via: rest
+      confidence: declared
+
+    - name: upstream-block
+      regex: '\bupstream\s+([\w.\-]+)\s*\{'
+      service_group: 1
+      via: rest
+      confidence: declared
+
+    - name: upstream-server
+      regex: '^\s*server\s+([\w.\-]+):\d+'
+      url_group: 1
+      via: rest
+
+    - name: grpc-pass
+      regex: '\bgrpc_pass\s+(?:grpcs?://)?([\w.\-${}]+)'
+      url_group: 1
+      via: grpc
+      confidence: declared
+
+    - name: lua-http-request
+      regex: '\b(?:httpc|http):request_uri\s*\(\s*([^,)]+)'
+      url_group: 1
+      via: rest
+
+    - name: lua-capture
+      regex: '\bngx\.location\.capture\s*\(\s*["'']([^"'']+)["'']'
+      path_group: 1
+      via: rest
+
+    - name: lua-balancer
+      regex: '\bbalancer\.set_current_peer\s*\(\s*([^,)]+)'
+      url_group: 1
+      via: rest
+
+    - name: redis-connect
+      regex: '\bred:connect\s*\(\s*["'']([^"'']+)["'']'
+      url_group: 1
+      via: database
+
+config:
+  base_urls:
+    - file: nginx.conf
+      regex: '\bset\s+\$([\w]+)\s+["'']?(https?://[^"''\s;]+)'
+    - file: conf/nginx.conf
+      regex: '\bset\s+\$([\w]+)\s+["'']?(https?://[^"''\s;]+)'
+
+notes: |
+  A routing layer is usually the highest-degree node in the estate: everything
+  goes through it, so `estate impact` on this repo tends to return most of the
+  estate. That is not a bug in the map, it is the actual risk profile of the
+  thing - and it is the argument for keeping routing changes small and
+  separately reviewed.
+
+  Coverage caveat worth stating: `proxy_pass` and `upstream` blocks give
+  excellent evidence, but routing logic implemented in Lua at request time can
+  compute an upstream dynamically, and no static reading will catch that.
+  Where a route is chosen at runtime, declare it by hand in the deed under
+  `consumes:` - a declared connection outranks everything detected and is
+  never re-derived.

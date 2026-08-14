@@ -34,7 +34,7 @@ IGNORED_DIRS = {
 # React app is not mistaken for a generic Node service.
 PRIORITY = [
     "as400", "roku-brightscript", "tvos", "ios-swift", "android-kotlin",
-    "react-web", "dotnet", "rust", "java", "python", "node",
+    "lua-nginx", "react-web", "dotnet", "rust", "java", "python", "node",
 ]
 
 

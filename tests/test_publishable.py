@@ -53,8 +53,13 @@ IDENTIFYING = [
         "a private IP address",
     ),
     (
+        # An internal hostname, but not a filename that happens to look like
+        # one: docker-compose.prod.yml and shared-cache-prod.internal.md are
+        # not hosts. A linter that cries wolf gets ignored, which is the same
+        # rule the secret guard lives by.
         r"\b[\w-]+\.(?:corp|internal|intranet|local|lan|prod|priv)\."
-        r"[\w-]{2,}\b",
+        r"(?!ya?ml\b|md\b|json\b|txt\b|py\b|[jt]sx?\b|toml\b|cfg\b|"
+        r"properties\b|html\b|css\b|sh\b|lock\b)[\w-]{2,}\b",
         "an internal hostname",
     ),
 ]
@@ -90,12 +95,35 @@ def _is_allowed_in_history(text: str) -> bool:
     return any(host in text for host in ALLOWED_EMAIL_HOSTS)
 
 
+def publishable_paths() -> set[str] | None:
+    """Exactly the files that would end up in the published repo.
+
+    Asking git is the only correct answer: walking the filesystem also picks
+    up generated scan output and other ignored files, which are not published
+    and whose contents are not our problem. Returns None when git is
+    unavailable, and the caller falls back to walking.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+            cwd=ROOT, capture_output=True, text=True, timeout=60,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    return set(result.stdout.split())
+
+
 def scanned_files() -> list[Path]:
+    published = publishable_paths()
     files: list[Path] = []
     for path in ROOT.rglob("*"):
         if not path.is_file():
             continue
         relative = path.relative_to(ROOT)
+        if published is not None and str(relative) not in published:
+            continue  # git ignores it, so it is never published
         parts = set(relative.parts)
         if parts & {".git", "__pycache__", "_build", ".venv", "node_modules"}:
             continue
@@ -107,7 +135,48 @@ def scanned_files() -> list[Path]:
     return sorted(files)
 
 
+def private_terms() -> list[str]:
+    """Terms from a local, git-ignored `.publish-denylist`.
+
+    A public repo cannot contain a list of your employer's internal service
+    names - writing them down to check for them would leak them, which is the
+    whole problem. So the list lives in a git-ignored file that never leaves
+    your machine, and only the mechanism is public.
+
+    One term per line, `#` for comments. Matching is case-insensitive and
+    whole-word.
+    """
+    path = ROOT / ".publish-denylist"
+    if not path.is_file():
+        return []
+    terms: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.split("#")[0].strip()
+        if len(line) >= 3:
+            terms.append(line)
+    return terms
+
+
 class NothingIdentifying(unittest.TestCase):
+    def test_no_private_terms(self) -> None:
+        """Checks your own denylist, if you have one. Skips if you do not."""
+        terms = private_terms()
+        if not terms:
+            self.skipTest(
+                "no .publish-denylist - create one (git-ignored) to check for "
+                "your organisation's internal names"
+            )
+        offences: list[str] = []
+        for path in scanned_files():
+            text = path.read_text(encoding="utf-8", errors="replace").lower()
+            for term in terms:
+                if re.search(rf"\b{re.escape(term.lower())}\b", text):
+                    offences.append(f"{path.relative_to(ROOT)}: {term}")
+        self.assertEqual(
+            [], offences,
+            "private terms found in a public repo:\n  " + "\n  ".join(offences),
+        )
+
     def test_no_personal_or_company_identifiers(self) -> None:
         offences: list[str] = []
         for path in scanned_files():

@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any
 
 from .discover import RepoRecord, Signal
+from .infra import InfraNode, build_nodes
 
 # How much each resolution method is trusted. These numbers are ordering, not
 # probability: what matters is that a declared name always beats a guess.
@@ -101,6 +102,10 @@ class Edge:
     score: float
     evidence: list[str] = field(default_factory=list)
     detail: str = ""
+    # Paths this caller was actually seen using. Empty means we know it
+    # calls the service but not which endpoints - reported as such rather
+    # than assumed to be all of them.
+    paths: list[str] = field(default_factory=list)
 
     def key(self) -> tuple[str, str, str, str]:
         return (self.source, self.target, self.via, self.method)
@@ -110,6 +115,7 @@ class Edge:
             "from": self.source, "to": self.target, "via": self.via,
             "resolved_by": self.method, "confidence": round(self.score, 2),
             "evidence": self.evidence[:6],
+            "paths": sorted(self.paths),
             **({"detail": self.detail} if self.detail else {}),
         }
 
@@ -163,6 +169,7 @@ class EstateMap:
     unresolved: list[Unresolved] = field(default_factory=list)
     workspace: str = ""
     external: list[External] = field(default_factory=list)
+    infrastructure: list[InfraNode] = field(default_factory=list)
 
     def repo(self, name: str) -> RepoRecord | None:
         for record in self.repos:
@@ -184,6 +191,7 @@ class EstateMap:
             "edges": [e.as_dict() for e in self.edges],
             "unresolved": [u.as_dict() for u in self.unresolved],
             "external": [x.as_dict() for x in self.external],
+            "infrastructure": [i.as_dict() for i in self.infrastructure],
         }
 
 
@@ -443,9 +451,18 @@ def build(repos: list[RepoRecord], workspace: str = "") -> EstateMap:
             if hint_method:
                 method, score = "declared", CONFIDENCE["declared"]
 
+            called_path = ""
+            if signal.kind == "path":
+                called_path = normalise_path(signal.value)
+            elif signal.kind == "url":
+                tail = _path_of(signal.value)
+                if tail:
+                    called_path = normalise_path(tail)
+
             edge = Edge(
                 record.name, target, signal.via, method, float(score),
                 [signal.evidence],
+                paths=[called_path] if called_path else [],
             )
             existing = merged.get(edge.key())
             if existing is None:
@@ -456,13 +473,18 @@ def build(repos: list[RepoRecord], workspace: str = "") -> EstateMap:
                     existing.method = edge.method
                 if signal.evidence not in existing.evidence:
                     existing.evidence.append(signal.evidence)
+                for known in edge.paths:
+                    if known not in existing.paths:
+                        existing.paths.append(known)
 
     edges = sorted(
         merged.values(), key=lambda e: (-e.score, e.source, e.target)
     )
     unresolved.sort(key=lambda u: (u.source, u.signal, u.value))
     external.sort(key=lambda x: (x.source, x.value))
-    return EstateMap(repos, edges, unresolved, workspace, external)
+    infrastructure = build_nodes({r.name: r.infra for r in repos})
+    return EstateMap(repos, edges, unresolved, workspace, external,
+                     infrastructure)
 
 
 # --------------------------------------------------------------------------

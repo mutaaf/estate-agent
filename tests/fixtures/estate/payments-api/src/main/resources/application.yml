@@ -1,0 +1,7 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://payments-db-prod.internal:5432/payments
+  data:
+    redis:
+      host: shared-cache-prod.internal
+      port: 6379

@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT / "site"))
 
 import build as site_build  # noqa: E402
 import markdown  # noqa: E402
+from levels import LEVELS, NEXT_STEP, QUESTIONS  # noqa: E402
 
 BASE = "https://example.org/estate-agent"
 
@@ -221,6 +222,81 @@ class SiteBuild(unittest.TestCase):
             self.assertGreater(
                 len(match.group(1)), 40, f"{page} description is too thin"
             )
+
+
+class Levels(unittest.TestCase):
+    """The ladder is the main thing a newcomer reads. It must be consistent
+    between the interactive explorer and the page, and legible on its own."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.doc = (ROOT / "docs" / "levels.md").read_text(encoding="utf-8")
+
+    def test_five_levels_numbered_zero_to_four(self) -> None:
+        self.assertEqual([0, 1, 2, 3, 4], [l["number"] for l in LEVELS])
+
+    def test_the_page_and_the_explorer_agree(self) -> None:
+        """Otherwise the site says one thing and the documentation another."""
+        for level in LEVELS:
+            with self.subTest(level=level["number"]):
+                heading = f"Level {level['number']} — {level['name']}"
+                self.assertIn(
+                    heading, self.doc,
+                    f"docs/levels.md is missing '{heading}'",
+                )
+
+    def test_every_level_says_what_is_still_wrong(self) -> None:
+        """The honest half. A ladder that only lists benefits is a brochure."""
+        for level in LEVELS:
+            with self.subTest(level=level["number"]):
+                self.assertTrue(
+                    level["still_wrong"] or level["number"] == 4,
+                    f"level {level['number']} claims nothing is still wrong",
+                )
+
+    def test_every_level_is_checkable(self) -> None:
+        for level in LEVELS:
+            with self.subTest(level=level["number"]):
+                self.assertTrue(level["check"], "no way to tell if you are here")
+                self.assertTrue(level["plain"], "no plain-language description")
+
+    def test_plain_descriptions_avoid_unexplained_jargon(self) -> None:
+        """Written for someone who has never used an AI coding agent."""
+        jargon = ["MCP", "LLM", "RAG", "embedding", "vector", "idempotent"]
+        for level in LEVELS:
+            for word in jargon:
+                with self.subTest(level=level["number"], word=word):
+                    self.assertNotIn(word, level["plain"])
+
+    def test_a_next_step_exists_for_every_level(self) -> None:
+        for level in LEVELS:
+            with self.subTest(level=level["number"]):
+                self.assertIn(level["number"], NEXT_STEP)
+                title, body = NEXT_STEP[level["number"]]
+                self.assertTrue(title and body)
+
+    def test_questions_map_onto_levels_in_order(self) -> None:
+        self.assertEqual([1, 2, 3, 4], [q["level"] for q in QUESTIONS])
+        for question in QUESTIONS:
+            with self.subTest(question=question["id"]):
+                self.assertTrue(question["ask"].endswith("?"))
+                self.assertTrue(question["hint"])
+
+    def test_levels_are_distinguished_from_tiers(self) -> None:
+        """The most likely way for this vocabulary to go wrong."""
+        self.assertIn("Levels are not tiers", self.doc)
+        glossary = (ROOT / "docs" / "glossary.md").read_text(encoding="utf-8")
+        self.assertIn("**Level**", glossary)
+        self.assertIn("Not to be confused with a *tier*", glossary)
+
+    def test_the_home_page_carries_the_explorer(self) -> None:
+        index = (
+            Path(SiteBuild.out) / "index.html"
+        ).read_text(encoding="utf-8") if hasattr(SiteBuild, "out") else ""
+        if not index:
+            self.skipTest("site not built in this run")
+        self.assertIn("levels-explorer", index)
+        self.assertIn("ESTATE_LEVELS", index)
 
 
 if __name__ == "__main__":

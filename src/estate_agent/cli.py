@@ -33,6 +33,8 @@ USAGE = """estate - the standard for AI agents working across your repo estate
     estate scan [workspace]   find every repo and map which services call which
     estate impact <repo> [endpoint]
                               what breaks if you change this
+    estate vault [workspace]  write the estate as linked markdown notes
+                              (Obsidian, GitHub, rg, or an AI agent)
 
   Other
     estate version
@@ -229,6 +231,9 @@ def main(argv: list[str] | None = None) -> int:
     if name == "upkeep":
         from .upkeep import cmd_upkeep
         return cmd_upkeep(args)
+    if name == "vault":
+        from .vault import cmd_vault
+        return cmd_vault(args)
 
     handler = COMMANDS.get(name)
     if handler is None:

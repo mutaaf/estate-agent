@@ -335,3 +335,113 @@ footer .row { display: flex; gap: 1.5rem; flex-wrap: wrap; }
   .masthead, .demo, .cta { display: none; }
   body { background: #fff; color: #000; }
 }
+
+/* ------------------------------------------------------------- the ladder */
+
+.ladder { list-style: none; padding: 0; margin: 2rem 0 0; counter-reset: none; }
+
+.level {
+  border: 1px solid var(--rule); border-radius: 4px;
+  margin-bottom: 0.6rem; background: var(--paper);
+  transition: border-color 0.2s, background 0.2s;
+}
+.level.open { border-color: var(--rule-2); background: var(--paper-2); }
+.level.here { border-color: var(--accent); border-width: 2px; }
+.level.done { opacity: 0.72; }
+
+.level-head {
+  display: flex; align-items: center; gap: 1rem; width: 100%;
+  padding: 0.9rem 1.1rem; background: none; border: 0; cursor: pointer;
+  text-align: left; font-family: var(--serif); color: var(--ink);
+  font-size: 1rem;
+}
+.level-head:hover .level-title strong { color: var(--accent); }
+
+.level-no {
+  flex: 0 0 2rem; height: 2rem; border-radius: 50%;
+  border: 1px solid var(--rule-2); display: grid; place-items: center;
+  font-family: var(--sans); font-size: 0.85rem; font-weight: 600;
+  color: var(--muted);
+}
+.level.open .level-no, .level.here .level-no {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.level.done .level-no {
+  background: var(--ok); border-color: var(--ok); color: #fff;
+}
+
+.level-title { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; }
+.level-title strong { font-weight: 600; font-size: 1.04rem; }
+.level-tag {
+  font-family: var(--sans); font-size: 0.8rem; color: var(--muted);
+}
+
+.badge {
+  font-family: var(--sans); font-size: 0.65rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.09em;
+  padding: 0.22rem 0.5rem; border-radius: 2px;
+  background: var(--accent); color: #fff; white-space: nowrap;
+}
+.badge.done { background: var(--ok); }
+
+.level-body { padding: 0 1.1rem 1.1rem 4.1rem; }
+.level-body p { margin: 0 0 1rem; }
+.level-body h4 {
+  margin: 1.1rem 0 0.4rem; font-size: 0.68rem; color: var(--muted);
+}
+.level-body ul { margin: 0 0 0.5rem; padding-left: 1.2rem; font-size: 0.95rem; }
+.level-body ul.gap li::marker { color: var(--warn); }
+
+.level-facts {
+  margin-top: 1.2rem; padding-top: 0.9rem;
+  border-top: 1px solid var(--rule);
+  display: grid; gap: 0.7rem;
+}
+@media (min-width: 46rem) {
+  .level-facts { grid-template-columns: 1fr 1fr; gap: 0.9rem 1.5rem; }
+}
+.level-facts > div { font-size: 0.9rem; }
+.level-facts span {
+  display: block; font-family: var(--sans); font-size: 0.66rem;
+  text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted);
+  margin-bottom: 0.15rem;
+}
+
+/* ------------------------------------------------------------- self-check */
+
+.quiz {
+  margin-top: 2.5rem; padding: 1.4rem 1.5rem;
+  border: 1px solid var(--rule-2); border-radius: 4px; background: var(--paper-2);
+}
+.quiz h3 { margin: 0 0 0.35rem; font-size: 1.12rem; }
+.quiz-intro { color: var(--muted); font-size: 0.92rem; margin-bottom: 1.3rem; }
+
+.q {
+  display: flex; gap: 1rem; align-items: flex-start;
+  justify-content: space-between; flex-wrap: wrap;
+  padding: 0.75rem 0; border-top: 1px solid var(--rule);
+}
+.q.locked { opacity: 0.4; pointer-events: none; }
+.q-ask { margin: 0; flex: 1 1 20rem; font-size: 0.96rem; }
+.q-hint {
+  display: block; font-family: var(--sans); font-size: 0.78rem;
+  color: var(--muted); margin-top: 0.2rem;
+}
+.q-buttons { display: flex; gap: 0.4rem; }
+.q-buttons button {
+  font-family: var(--sans); font-size: 0.8rem; font-weight: 600;
+  padding: 0.35rem 0.85rem; border-radius: 3px; cursor: pointer;
+  border: 1px solid var(--rule-2); background: var(--paper); color: var(--ink-2);
+}
+.q-buttons button:hover { border-color: var(--accent); color: var(--accent); }
+.q-buttons button.on {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+
+.verdict {
+  margin-top: 1.4rem; padding-top: 1.2rem; border-top: 2px solid var(--accent);
+}
+.verdict p { margin: 0 0 0.6rem; }
+.verdict .next-title {
+  font-weight: 600; font-size: 1.05rem; margin-top: 1rem;
+}

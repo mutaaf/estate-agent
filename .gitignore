@@ -16,3 +16,15 @@ site/_build/
 
 # Generated site output
 _site/
+
+# Scan output written inside the fixture. concepts.yaml is curated and
+# stays tracked; these are generated and embed an absolute path.
+tests/fixtures/estate/estate/graph.json
+tests/fixtures/estate/estate/estate.yaml
+tests/fixtures/estate/ESTATE.md
+tests/fixtures/estate/vault/
+
+# Your organisation's internal names, for the publish-safety check. Never
+# committed: writing them down in a public repo to check for them would be
+# the leak. See tests/test_publishable.py::private_terms.
+.publish-denylist

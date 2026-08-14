@@ -19,8 +19,9 @@ from pathlib import Path
 from typing import Any
 
 from . import ui
-from .graph import Edge, EstateMap, Unresolved, normalise_path
+from .graph import Edge, EstateMap, External, Unresolved, normalise_path
 from .discover import Endpoint, RepoRecord
+from .infra import InfraNode, InfraRef
 
 GRAPH_PATH = Path("estate") / "graph.json"
 
@@ -61,6 +62,7 @@ def load_map(graph_file: Path) -> EstateMap:
             e.get("from", ""), e.get("to", ""), e.get("via", "unknown"),
             e.get("resolved_by", ""), float(e.get("confidence", 0)),
             list(e.get("evidence", [])), e.get("detail", ""),
+            list(e.get("paths", [])),
         )
         for e in data.get("edges", [])
     ]
@@ -72,7 +74,38 @@ def load_map(graph_file: Path) -> EstateMap:
         )
         for u in data.get("unresolved", [])
     ]
-    return EstateMap(repos, edges, unresolved, data.get("workspace", ""))
+    external = [
+        External(
+            x.get("from", ""), x.get("value", ""), x.get("via", ""),
+            x.get("evidence", ""), x.get("kind", ""),
+        )
+        for x in data.get("external", [])
+    ]
+    infrastructure = [
+        InfraNode(
+            i.get("identity", ""), i.get("name", ""), i.get("kind", ""),
+            i.get("technology", ""), list(i.get("used_by", [])),
+            list(i.get("evidence", [])),
+        )
+        for i in data.get("infrastructure", [])
+    ]
+    for record in repos:
+        raw = next(
+            (r.get("infra", []) for r in data.get("repos", [])
+             if r.get("name") == record.name), []
+        )
+        record.infra = [
+            InfraRef(
+                x.get("identity", ""), x.get("name", ""), x.get("kind", ""),
+                x.get("technology", ""), x.get("evidence", ""),
+                bool(x.get("shared")),
+            )
+            for x in raw
+        ]
+    return EstateMap(
+        repos, edges, unresolved, data.get("workspace", ""), external,
+        infrastructure,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -83,6 +116,20 @@ def load_map(graph_file: Path) -> EstateMap:
 # cycles you are committed to supporting the old shape for" and drives both
 # ordering and the wording of the advice.
 SHIP_COST = {"client": 2, "legacy": 1, "backend": 0}
+
+
+def _path_matches(wanted: str, known: list[str]) -> bool:
+    """Does this caller use the endpoint being asked about?
+
+    Prefix either way, so a caller of `/v2/refund` counts against the
+    provider's `/v2/refund/{id}` and vice versa.
+    """
+    for path in known:
+        if path == wanted:
+            return True
+        if path.startswith(wanted + "/") or wanted.startswith(path + "/"):
+            return True
+    return False
 
 
 def blast_radius(
@@ -108,12 +155,28 @@ def blast_radius(
     frontier = [target]
     depth = 0
 
+    wanted_path = normalise_path(endpoint) if endpoint else ""
+
     while frontier and depth < 8:
         callers: list[dict[str, Any]] = []
         for name in frontier:
             for edge in estate.callers_of(name):
                 if edge.source in seen:
                     continue
+
+                # When asking about one endpoint, drop the direct callers we
+                # can prove use a *different* one. A caller whose evidence
+                # records no path at all is kept - we know it calls the
+                # service and not which part, and dropping it would hide a
+                # real consumer. It is marked so the report can say which is
+                # which rather than implying certainty it does not have.
+                uses = "unknown"
+                if depth == 0 and wanted_path and edge.paths:
+                    if _path_matches(wanted_path, edge.paths):
+                        uses = "this endpoint"
+                    else:
+                        continue
+
                 seen.add(edge.source)
                 caller = estate.repo(edge.source)
                 callers.append({
@@ -125,6 +188,7 @@ def blast_radius(
                     "confidence": edge.score,
                     "resolved_by": edge.method,
                     "evidence": edge.evidence[0] if edge.evidence else "",
+                    "uses": uses,
                 })
         if not callers:
             break
@@ -295,11 +359,21 @@ def _report(result: dict[str, Any]) -> None:
                 "client": "CLIENT APP - ships on its own release cycle",
                 "legacy": "LEGACY - coordinate by hand",
             }.get(caller["kind"], caller["stack"])
+            # Say plainly which callers are proven to use this endpoint and
+            # which merely call the service. Presenting both as certain is how
+            # a report starts being disbelieved.
+            certainty = ""
+            if endpoint and depth == 1:
+                certainty = (
+                    " · uses this endpoint"
+                    if caller.get("uses") == "this endpoint"
+                    else " · calls the service; which endpoint is unknown"
+                )
             ui.item(
                 marker, f"{caller['repo']}  ({tag})",
                 f"calls {caller['through']} via {caller['via']} · "
                 f"{caller['resolved_by']} {caller['confidence']:.2f} · "
-                f"{caller['evidence']}",
+                f"{caller['evidence']}{certainty}",
             )
         ui.say()
 

@@ -93,9 +93,27 @@ estate upkeep
 | `estate upkeep` | find what has gone stale, repair what is safe | yes |
 | `estate scan` | map every repo in a workspace | yes |
 | `estate impact` | what breaks if you change this | no |
+| `estate vault` | write the estate as linked markdown notes | yes |
+
+## 7. Optional: a vault of linked notes
+
+If you want the estate as a browsable knowledge base rather than a report:
+
+```bash
+estate vault ~/work
+```
+
+You get one note per service, per shared cluster, and per endpoint something
+calls — wikilinked, with YAML frontmatter. Open it in Obsidian for the graph
+view, read it on GitHub, or point an agent at the folder. It also scaffolds
+`Investigations/`, `Decisions/` and `Runbooks/` for the things only a person
+can write. Everything under `Generated/` is overwritten on each run; the human
+trees never are.
 
 ## What next
 
+- Not sure how far you have got? [The five levels](levels.md) has a
+  four-question self-check.
 - Adding a repo? Repeat steps 2–4. It gets faster.
 - Curious how the map works? [The estate map](estate.md)
 - Worried about safety? [What data goes where](data-flow.md)

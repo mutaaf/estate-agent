@@ -28,6 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import markdown  # noqa: E402
+from levels import LEVELS, NEXT_STEP, QUESTIONS  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
@@ -40,6 +41,8 @@ VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 # Order matters: it drives the navigation, the sitemap, and llms.txt.
 PAGES = [
+    ("levels", "The five levels",
+     "How far you have adopted, from nothing to self-maintaining — in plain language, with what each level costs and what is still wrong at it."),
     ("start-here", "Start here",
      "Install Estate Agent and set one repository up in about fifteen "
      "minutes: detect the stack, write the deed, install the guardrails, "
@@ -65,6 +68,10 @@ PAGES = [
      "The costs, the benefits, and what failure looks like."),
     ("adding-a-stack", "Adding a language",
      "Teaching Estate Agent a new stack. One YAML file, no code."),
+    ("interop", "Inside an existing initiative",
+     "What Estate Agent covers, what it deliberately leaves to humans, and "
+     "how to use it as a component of a documentation or knowledge-graph "
+     "project you already have."),
     ("glossary", "Glossary", "Every term defined, including the ones the "
      "industry uses carelessly."),
 ]
@@ -284,6 +291,24 @@ def build_index(base: str) -> str:
   <div class="grid">{cards}</div>
 
   <div class="prose">
+    <h2 id="levels">The five levels</h2>
+    <p>Adoption is a ladder, not a switch. Each level is worth having on its
+      own, and you can stop at any of them. Click one to see what it gets you,
+      what it costs, and — the part most descriptions leave out — what is still
+      wrong once you are there.</p>
+    <p class="quiz-intro">Not sure where you are? Answer the four questions
+      underneath and you will be told, along with the single next thing to
+      do.</p>
+  </div>
+
+  <section id="levels-explorer" aria-label="The five adoption levels"></section>
+
+  <div class="prose">
+    <p><em>Levels are not tiers.</em> A <strong>level</strong> is how far you
+      have adopted. A <strong>tier</strong> is how much a single repo lets an
+      agent do — read-only, pull requests, or merge on green.
+      <a href="tiers/">Tiers are explained here →</a></p>
+
     <h2 id="how-it-works">How the map works</h2>
     <p>No code-graph tool covers a real estate. The best available option parses
       Java, Rust, .NET, Node and Kotlin — but not Swift, not BrightScript, not
@@ -369,7 +394,18 @@ estate scan ~/work   # map the whole estate</code></pre></div>
         ),
         body=body, base=base, url_path="",
         structured=structured,
-        scripts='<script src="assets/hero.js" defer></script>',
+        extra_head=(
+            '<script>window.ESTATE_LEVELS='
+            + json.dumps({
+                'levels': LEVELS, 'questions': QUESTIONS,
+                'next': {str(k): v for k, v in NEXT_STEP.items()},
+            })
+            + ';</script>'
+        ),
+        scripts=(
+            '<script src="assets/hero.js" defer></script>'
+            '<script src="assets/levels.js" defer></script>'
+        ),
     )
 
 

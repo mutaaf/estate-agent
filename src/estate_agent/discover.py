@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from . import stacks as stacks_mod
+from .infra import InfraRef, survey_infra
 from .stacks import IGNORED_DIRS, Stack
 
 # Hard caps. A hundred-repo estate must map in seconds, and a runaway walk
@@ -94,6 +95,7 @@ class RepoRecord:
     declared_consumes: list[dict[str, Any]] = field(default_factory=list)
     has_deed: bool = False
     notes: list[str] = field(default_factory=list)
+    infra: list[InfraRef] = field(default_factory=list)
 
     @property
     def is_client(self) -> bool:
@@ -114,6 +116,7 @@ class RepoRecord:
             ],
             "hosts": self.hosts,
             "notes": self.notes,
+            "infra": [i.as_dict() for i in self.infra],
         }
 
 
@@ -563,6 +566,11 @@ def survey(root: Path, workspace: Path) -> RepoRecord:
         primary_stack=detections[0].stack if detections else "",
         has_deed=(root / ".agent" / "estate.yaml").is_file(),
     )
+
+    # Infrastructure config is language-neutral, so this runs even for a repo
+    # whose stack was not recognised - a deploy manifest still tells us what
+    # it connects to.
+    record.infra = survey_infra(root)
 
     if not detections:
         record.notes.append("no known stack detected")

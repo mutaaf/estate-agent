@@ -218,6 +218,67 @@ class BlastRadius(unittest.TestCase):
         self.assertIn("error", blast_radius(estate, "does-not-exist"))
 
 
+class Infrastructure(unittest.TestCase):
+    """Shared clusters, and the precision rule that governs them.
+
+    "Which services share this cache" is one of the questions that is hardest
+    to answer and most expensive to get wrong during an incident. It is also
+    easy to answer *wrongly*: every repo with a local Postgres in its compose
+    file would otherwise appear to share one database with every other.
+    """
+
+    def test_two_services_naming_one_host_share_a_node(self) -> None:
+        estate = build_map()
+        shared = [n for n in estate.infrastructure if n.is_shared]
+        self.assertEqual(1, len(shared), "expected exactly one shared node")
+        node = shared[0]
+        self.assertEqual("shared-cache-prod.internal", node.display)
+        self.assertEqual("cache", node.kind)
+        self.assertEqual(["ledger-rust", "payments-api"], sorted(node.users))
+
+    def test_separate_hosts_stay_separate(self) -> None:
+        estate = build_map()
+        databases = {
+            n.display: sorted(n.users)
+            for n in estate.infrastructure if n.kind == "database"
+        }
+        self.assertEqual(["payments-api"], databases["payments-db-prod.internal"])
+        self.assertEqual(["ledger-rust"], databases["ledger-db-prod.internal"])
+
+    def test_a_local_container_does_not_join_a_shared_node(self) -> None:
+        """The rule that keeps this feature honest."""
+        estate = build_map()
+        checkout = estate.repo("checkout-node")
+        local = [r for r in checkout.infra if r.technology == "redis"]
+        self.assertTrue(local, "the compose redis should be recorded")
+        self.assertFalse(
+            any(r.shared for r in local),
+            "a container image in one repo's compose file is local development, "
+            "not a shared production cluster",
+        )
+        self.assertNotIn(
+            "checkout-node",
+            [u for n in estate.infrastructure for u in n.users],
+        )
+
+    def test_infra_nodes_cite_evidence(self) -> None:
+        estate = build_map()
+        for node in estate.infrastructure:
+            self.assertTrue(node.evidence, f"{node.display} has no evidence")
+            self.assertRegex(node.evidence[0], r"^[\w.-]+:.+:\d+$")
+
+    def test_infra_detection_is_language_neutral(self) -> None:
+        """Java YAML and Rust TOML, same cluster, one node."""
+        estate = build_map()
+        node = next(
+            n for n in estate.infrastructure
+            if n.display == "shared-cache-prod.internal"
+        )
+        sources = " ".join(node.evidence)
+        self.assertIn("application.yml", sources)
+        self.assertIn("default.toml", sources)
+
+
 class Determinism(unittest.TestCase):
     def test_two_scans_agree(self) -> None:
         """Same estate, same map - no model, no randomness."""

@@ -33,6 +33,11 @@ never.
 
 ---
 
+Adoption is a ladder of five levels, and this page is the "should we" case
+for climbing it. The levels themselves — what each one gets you, what it costs,
+and what is still wrong once you are there — are in
+[the five levels](levels.md), which also has a four-question self-check.
+
 ## Adopt it in this order
 
 **1. One person, one repo, one afternoon.** Pick a repo you know well, ideally
