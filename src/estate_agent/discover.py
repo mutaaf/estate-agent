@@ -157,6 +157,12 @@ def find_repos(workspace: Path, max_depth: int = 3) -> list[Path]:
                 continue  # Do not descend into a repo looking for more.
             if entry.name.startswith("."):
                 continue
+            # Not every project is a git checkout: vendored copies, exported
+            # trees, and anything not yet under version control still belong on
+            # the map. A recognised build file is enough.
+            if _looks_like_a_project(entry):
+                found.append(entry)
+                continue
             walk(entry, depth + 1)
 
     if (workspace / ".git").exists():
@@ -164,16 +170,40 @@ def find_repos(workspace: Path, max_depth: int = 3) -> list[Path]:
     else:
         walk(workspace, 1)
 
-    # A directory with a build file but no git is still a repo worth mapping.
-    if not found:
-        markers = ("package.json", "pom.xml", "Cargo.toml", "pyproject.toml")
-        for entry in sorted(p for p in workspace.iterdir() if p.is_dir()):
-            if entry.name in IGNORED_DIRS or entry.name.startswith("."):
-                continue
-            if any((entry / m).exists() for m in markers):
-                found.append(entry)
-
     return found
+
+
+def _project_markers() -> tuple[set[str], list[str]]:
+    """What a project looks like, according to the stack profiles.
+
+    Asking the profiles rather than hard-coding a list means every stack Estate
+    Agent understands is also a stack it can *find* - including one somebody
+    added last week without touching this file.
+    """
+    literals: set[str] = set()
+    globs: list[str] = []
+    for stack in stacks_mod.all_stacks().values():
+        for marker in stack.detect.get("files") or []:
+            text = str(marker)
+            if any(ch in text for ch in "*?["):
+                globs.append(text)
+            else:
+                literals.add(text)
+    return literals, globs
+
+
+def _looks_like_a_project(directory: Path) -> bool:
+    literals, globs = _project_markers()
+    for name in literals:
+        if (directory / name).exists():
+            return True
+    for pattern in globs:
+        try:
+            if any(directory.glob(pattern)):
+                return True
+        except OSError:
+            continue
+    return False
 
 
 # --------------------------------------------------------------------------
