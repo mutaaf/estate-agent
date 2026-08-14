@@ -303,10 +303,14 @@ def _report(result: dict[str, Any]) -> None:
             )
         ui.say()
 
-    counts = (
-        f"{len(result['affected'])} repos affected"
-        f"{f', {len(result['clients'])} of them client apps' if result['clients'] else ''}"
-    )
+    # Written out longhand rather than as a nested f-string: reusing the same
+    # quote inside an f-string expression only became legal in Python 3.12,
+    # and Estate Agent has to run on whatever Python a work laptop already has.
+    total = len(result["affected"])
+    client_count = len(result["clients"])
+    counts = f"{total} repos affected"
+    if client_count:
+        counts += f", {client_count} of them client apps"
     ui.summary(0, len(result["affected"]) - len(result["clients"]), len(result["clients"]))
     ui.say(f"  {counts}")
     ui.say()
