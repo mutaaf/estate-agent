@@ -32,6 +32,10 @@ EXEMPT = {
     "tests/test_secret_guard.py",   # the adversarial battery, by definition
     "hooks/secret_guard.py",        # the detectors themselves
     "tests/test_publishable.py",    # this file
+    # Plants identifying-looking strings on purpose and asserts the field
+    # report strips them. The fakes have to be there for the test to mean
+    # anything.
+    "tests/test_report.py",
 }
 
 SCANNED_SUFFIXES = {
