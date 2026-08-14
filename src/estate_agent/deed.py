@@ -190,9 +190,18 @@ def parse(data: Any) -> tuple[Deed, list[Problem]]:
 
     # -- stack -------------------------------------------------------------
     if not deed.stack:
+        # A warning, not an error. A repo whose stack Estate Agent does not
+        # recognise still benefits from everything else in the deed - the
+        # summary, the never-do list, the tier, the estate connections - and
+        # nothing in rendering needs the stack. Treating this as fatal meant
+        # `init` announced "the deed will be written with blanks for you to
+        # fill in" and then refused to continue because of those blanks,
+        # leaving the repo half set up. Found by running it on a shell repo.
         problems.append(Problem(
             "repo.stack",
-            "missing - run `estate init` to detect it, or set it by hand",
+            "not recognised - set it by hand if you know it, or add a stack "
+            "profile. Everything else still works.",
+            fatal=False,
         ))
 
     # -- tier --------------------------------------------------------------
@@ -233,10 +242,10 @@ def parse(data: Any) -> tuple[Deed, list[Problem]]:
                 "no test command - the agent cannot verify its own changes",
                 fatal=False,
             ))
-        if "build" not in deed.commands:
-            problems.append(Problem(
-                "commands.build", "no build command", fatal=False
-            ))
+        # Deliberately no warning for a missing build command. Most repos -
+        # scripts, libraries, most Python and Node services - have no build
+        # step, and warning about it on every run trains people to ignore the
+        # warnings that matter. The test command is the one worth insisting on.
 
     # -- provides ----------------------------------------------------------
     provides = data.get("provides")

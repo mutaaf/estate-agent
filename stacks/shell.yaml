@@ -1,0 +1,87 @@
+# Estate Agent stack profile: Shell / operations tooling
+#
+# Deliberately last in the detection order. Almost every repo has a .sh file
+# somewhere, so this must only win when there is nothing else to be - otherwise
+# it steals Java repos that happen to ship a build script.
+#
+# Worth having despite that: deployment tooling, CI helpers, agent runners and
+# ops repos are everywhere, they frequently hold the commands that touch
+# production, and they are exactly the repos where an unguided agent can do the
+# most damage.
+
+stack: shell
+display: Shell / tooling
+kind: backend
+
+detect:
+  # Only used when no real stack matched. Priority order is not enough on its
+  # own: it breaks ties, and a Python service with 158 deployment scripts
+  # outscores its own Python.
+  fallback: true
+  files:
+    - Makefile
+    - Justfile
+    - justfile
+  extensions:
+    - .sh
+    - .bash
+    - .zsh
+  any_dirs:
+    - bin
+    - scripts
+  min_source_files: 2
+
+commands:
+  test: ''
+  lint: shellcheck **/*.sh
+  alternatives:
+    - when: Makefile
+      test: make test
+      build: make
+    - when: Justfile
+      test: just test
+    - when: tests/run.sh
+      test: ./tests/run.sh
+
+conventions:
+  - set -euo pipefail at the top of every script
+  - Quote every variable expansion; unquoted paths break on spaces
+  - Prefer a function and a main guard over top-level side effects
+
+tier_default: 2
+
+provides: {}
+
+consumes:
+  patterns:
+    - name: curl-call
+      regex: '\bcurl\s+(?:-[\w-]+\s+)*["'']?(https?://[^\s"''`]+)'
+      url_group: 1
+      via: rest
+    - name: wget-call
+      regex: '\bwget\s+(?:-[\w-]+\s+)*["'']?(https?://[^\s"''`]+)'
+      url_group: 1
+      via: rest
+    - name: base-url-var
+      regex: '^\s*(?:export\s+)?([A-Z][A-Z0-9_]*(?:URL|ENDPOINT|HOST|API))\s*=\s*["'']?([^\s"'']+)'
+      env_group: 1
+      via: rest
+    - name: aws-service
+      regex: '\baws\s+(\w[\w-]+)\s'
+      service_group: 1
+      via: rest
+    - name: psql-connect
+      regex: '\bpsql\s+(?:-[\w-]+\s+)*["'']?(postgres(?:ql)?://[^\s"'']+)'
+      url_group: 1
+      via: database
+
+config:
+  base_urls:
+    - file: .env.example
+      regex: '([A-Z0-9_]*(?:URL|ENDPOINT|HOST))\s*=\s*(.*)'
+
+notes: |
+  Detection is deliberately weak so this never outranks a real language. A repo
+  lands here only when nothing else claimed it, which makes a `shell`
+  classification a useful signal in itself: it usually means either genuine ops
+  tooling, or a stack Estate Agent does not cover yet and should.

@@ -351,9 +351,10 @@ def decide(payload: dict) -> tuple[str, str, dict]:
                 if is_allowlisted(cwd, fid):
                     record(cwd, "allowlisted", {"id": fid, "kind": description})
                     return ("allow", "", {})
+                article = "an" if description[0].lower() in "aeiou" else "a"
                 return (
                     "deny",
-                    f"Blocked: {value} is a {description}.\n"
+                    f"Blocked: {value} is {article} {description}.\n"
                     f"Estate Agent's secret guard does not let agents read or "
                     f"write credential files.\n"
                     f"If this file is genuinely safe, add `{fid}` to "
@@ -371,9 +372,10 @@ def decide(payload: dict) -> tuple[str, str, dict]:
             if is_allowlisted(cwd, fid):
                 record(cwd, "allowlisted", {"id": fid, "kind": description})
                 return ("allow", "", {})
+            article = "an" if description[0].lower() in "aeiou" else "a"
             return (
                 "deny",
-                f"Blocked: this command reads a {description}.\n"
+                f"Blocked: this command reads {article} {description}.\n"
                 f"Evidence: {evidence}\n"
                 f"If this is genuinely safe, add `{fid}` to "
                 f".agent/secret-guard-allow.txt with a note explaining why.",
@@ -395,9 +397,10 @@ def decide(payload: dict) -> tuple[str, str, dict]:
             others = (
                 f" (plus {len(findings) - 1} more)" if len(findings) > 1 else ""
             )
+            article = "an" if kind[0].lower() in "aeiou" else "a"
             return (
                 "deny",
-                f"Blocked: this {tool} contains what looks like a {kind}"
+                f"Blocked: this {tool} contains what looks like {article} {kind}"
                 f"{others}.\nEvidence: {evidence}\n"
                 f"Use an environment variable or your secret manager instead. "
                 f"If this is a false positive, add `{fid}` to "

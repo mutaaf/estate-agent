@@ -18,18 +18,37 @@ detect:
     - .py
 
 commands:
-  install: pip install -e .
-  build: python -m build
-  test: pytest
+  # `python3`, not `python`: macOS has no `python` on PATH at all, so the
+  # shorter name produces a command that fails everywhere it matters.
+  #
+  # No default build command. Most Python repos are not packages, and a build
+  # step that does not exist is worse than a missing one - the agent runs it,
+  # it fails, and the agent concludes the repo is broken.
+  install: python3 -m pip install -r requirements.txt
+  test: python3 -m pytest
   lint: ruff check .
   format: ruff format --check .
   alternatives:
+    # A virtualenv in the repo is the common case, and its tools are not on
+    # PATH. Writing bare `pytest` produces a deed that is wrong on every
+    # machine including the author's. Found by running this on a real repo.
+    - when: .venv
+      install: .venv/bin/pip install -r requirements.txt
+      test: .venv/bin/pytest
+      lint: .venv/bin/ruff check .
+      format: .venv/bin/ruff format --check .
+    - when: venv
+      install: venv/bin/pip install -r requirements.txt
+      test: venv/bin/pytest
+      lint: venv/bin/ruff check .
     - when: poetry.lock
       install: poetry install
       test: poetry run pytest
+      lint: poetry run ruff check .
     - when: uv.lock
       install: uv sync
       test: uv run pytest
+      lint: uv run ruff check .
 
 conventions:
   - Type hints on public functions; run the type checker before committing

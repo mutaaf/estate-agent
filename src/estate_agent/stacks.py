@@ -35,6 +35,9 @@ IGNORED_DIRS = {
 PRIORITY = [
     "as400", "roku-brightscript", "tvos", "ios-swift", "android-kotlin",
     "lua-nginx", "react-web", "dotnet", "rust", "java", "python", "node",
+    # Last: almost every repo has a shell script, so this must only win
+    # when nothing else claimed the repo.
+    "shell",
 ]
 
 
@@ -392,7 +395,11 @@ def detect(root: Path) -> list[Detection]:
             total = sum(counts.values())
             minimum = int(detect_rules.get("min_source_files") or 1)
             if total >= minimum:
-                score += min(0.4, 0.1 + total / 100)
+                # Enough source files is evidence on its own. A repo with 40
+                # .py files and no pyproject.toml is still a Python repo -
+                # plenty of projects carry no packaging metadata at all, and
+                # Estate Agent's own repo is one of them.
+                score += min(0.65, 0.15 + total / 30)
                 listed = ", ".join(
                     f"{n}{ext}" for ext, n in sorted(
                         counts.items(), key=lambda kv: -kv[1]
@@ -414,8 +421,22 @@ def detect(root: Path) -> list[Detection]:
         if score >= 0.5:
             results.append(Detection(name, round(min(score, 1.0), 2), reasons))
 
+    # A fallback stack - `shell` - describes what a repo is when nothing else
+    # fits. It must never outrank a real stack, and priority order alone does
+    # not achieve that: priority breaks ties, and a repo with 158 shell scripts
+    # scores higher than the same repo's Python. Found when a Python service
+    # with a .venv and a pyproject.toml was classified as shell.
+    real = [d for d in results if not _is_fallback(d.stack)]
+    if real:
+        results = real
+
     results.sort(key=lambda d: (-d.confidence, PRIORITY.index(d.stack)))
     return results
+
+
+def _is_fallback(name: str) -> bool:
+    stack = all_stacks().get(name)
+    return bool(stack and stack.detect.get("fallback"))
 
 
 def primary(root: Path) -> Detection | None:

@@ -27,6 +27,14 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 EXISTING_CONTEXT_FILES = [
     "CLAUDE.md", "AGENTS.md", "GEMINI.md", ".cursorrules",
     ".github/copilot-instructions.md", ".cursor/rules/00-estate.mdc",
+    # The copies kept by a previous `init`. On a re-run the live files are
+    # already generated - and therefore skipped as ours - so without these the
+    # second `init --force` would salvage nothing and the human content, kept
+    # so carefully the first time, would vanish from the deed. Found by running
+    # init twice on a real repo.
+    "CLAUDE.md.before-estate-agent",
+    "AGENTS.md.before-estate-agent",
+    "GEMINI.md.before-estate-agent",
 ]
 
 # Commands hidden in fenced blocks or inline code in a hand-written file.
@@ -103,7 +111,14 @@ def cmd_init(args: list[str]) -> int:
         )
 
     # -- 3. Build the deed --------------------------------------------------
-    deed_data = _build_deed(root, profile, salvaged)
+    previous_notes = ""
+    if deed_file.is_file():
+        from .deed import load as load_existing
+
+        existing, _ = load_existing(deed_file)
+        previous_notes = existing.notes
+
+    deed_data = _build_deed(root, profile, salvaged, previous_notes)
 
     if dry_run:
         ui.say()
@@ -219,7 +234,10 @@ def _salvage(root: Path) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
-def _build_deed(root: Path, profile, salvaged: dict[str, Any]) -> dict[str, Any]:
+def _build_deed(
+    root: Path, profile, salvaged: dict[str, Any],
+    previous_notes: str = "",
+) -> dict[str, Any]:
     commands = profile.commands_for(root) if profile else {}
     # What a human wrote beats what we inferred from the build system.
     commands.update(salvaged["commands"])
@@ -266,7 +284,16 @@ def _build_deed(root: Path, profile, salvaged: dict[str, Any]) -> dict[str, Any]
             "read.\n"
         )
 
-    if salvaged["prose"]:
+    # Precedence matters here, and it is the opposite of the obvious order.
+    #
+    # Once a deed exists, *it* is the source of truth: its notes already
+    # contain whatever was salvaged the first time, plus anything a human has
+    # written since. Re-salvaging from the original backup and overwriting
+    # would quietly discard those later edits. So the existing deed wins, and
+    # salvage only fills the gap on a first run.
+    if previous_notes:
+        data["notes"] = (data.get("notes", "") + previous_notes).strip() + "\n"
+    elif salvaged["prose"]:
         existing = data.get("notes", "")
         data["notes"] = (
             existing

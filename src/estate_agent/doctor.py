@@ -240,18 +240,31 @@ def _report_existing_context(root: Path) -> None:
 
 
 def _broken_commands(root: Path, commands: dict[str, str]) -> list[str]:
-    """Check the first word of each command actually exists."""
+    """Check the first word of each command actually exists.
+
+    Anything containing a slash is a path, not a PATH lookup. `.venv/bin/pytest`
+    and `./gradlew` are both repo-relative; only a bare name like `npm` gets
+    looked up on PATH. Treating `.venv/bin/pytest` as a PATH lookup reported
+    perfectly good commands as broken, which is how a check earns the right to
+    be ignored.
+    """
     broken: list[str] = []
     for name, command in commands.items():
         first = command.strip().split()[0] if command.strip() else ""
         if not first:
             continue
-        if first.startswith("./") or first.startswith("../"):
-            if not (root / first).exists():
-                broken.append(f"{name}: {first} does not exist in this repo")
-            continue
         if first in {"cd", "source", "export", "echo", "true"}:
             continue
+
+        if "/" in first:
+            candidate = Path(first)
+            target = candidate if candidate.is_absolute() else root / first
+            if not target.exists():
+                broken.append(f"{name}: {first} does not exist in this repo")
+            elif not os.access(target, os.X_OK):
+                broken.append(f"{name}: {first} is not executable")
+            continue
+
         if shutil.which(first) is None:
             broken.append(f"{name}: `{first}` is not on PATH")
     return broken

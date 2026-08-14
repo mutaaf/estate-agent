@@ -340,5 +340,61 @@ class Idempotent(HealingCase):
         self.assertEqual(after_first, after_second)
 
 
+class ReInitKeepsHumanContent(HealingCase):
+    """`init --force` must not be the thing that loses someone's writing.
+
+    On a second run the live CLAUDE.md is already generated, so it is skipped
+    as ours - and without reading the `.before-estate-agent` copy the salvaged
+    prose vanished from the deed. On a real repo that was 11,743 bytes of
+    hand-written documentation reduced to nothing, silently.
+    """
+
+    def _fresh_repo(self, body: str) -> Path:
+        repo = self.workspace / "with-notes"
+        (repo / "src").mkdir(parents=True, exist_ok=True)
+        (repo / ".git").mkdir(exist_ok=True)
+        (repo / "package.json").write_text('{"name":"with-notes"}', encoding="utf-8")
+        (repo / "src" / "a.ts").write_text("export const a = 1\n", encoding="utf-8")
+        (repo / "CLAUDE.md").write_text(body, encoding="utf-8")
+        return repo
+
+    def test_content_survives_a_second_init(self) -> None:
+        marker = "Ask Devi before touching the reconciliation job."
+        repo = self._fresh_repo(f"# With notes\n\n{marker}\n")
+
+        cmd_init([str(repo)])
+        self.assertIn(marker, (repo / "CLAUDE.md").read_text(encoding="utf-8"))
+
+        cmd_init([str(repo), "--force"])
+        self.assertIn(
+            marker, (repo / "CLAUDE.md").read_text(encoding="utf-8"),
+            "re-running init lost the salvaged human content",
+        )
+
+    def test_content_survives_a_third_init(self) -> None:
+        marker = "The settlement module is a minefield."
+        repo = self._fresh_repo(f"# Notes\n\n{marker}\n")
+        for _ in range(3):
+            cmd_init([str(repo), "--force"])
+        self.assertIn(marker, (repo / "CLAUDE.md").read_text(encoding="utf-8"))
+
+    def test_hand_edited_deed_notes_survive_a_rebuild(self) -> None:
+        """Notes edited directly in the deed are human work too."""
+        repo = self._fresh_repo("# Notes\n\nOriginal line.\n")
+        cmd_init([str(repo)])
+
+        deed_file = repo / DEED_PATH
+        data = yamlite.load(deed_file.read_text(encoding="utf-8"))
+        data["notes"] = (data.get("notes") or "") + "\nAdded by hand later.\n"
+        deed_file.write_text(yamlite.dump(data), encoding="utf-8")
+
+        cmd_init([str(repo), "--force"])
+
+        self.assertIn(
+            "Added by hand later",
+            yamlite.load(deed_file.read_text(encoding="utf-8")).get("notes", ""),
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
